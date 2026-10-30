@@ -1,15 +1,11 @@
 """Secure feasibility inspection, not production reconciliation or publication."""
 
-import io
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from xml.etree.ElementTree import ParseError
-
-from defusedxml import ElementTree
-from defusedxml.common import DefusedXmlException
 
 from ..timestamps import source_timestamp
+from ..xml_catalog import iter_price_items
 from .stream import SourceError
 
 
@@ -50,51 +46,19 @@ def inspect_catalog(
 ) -> CatalogSummary:
     published = source_timestamp(published_at)
     headers: dict[str, str] = {}
-    stack: list[str] = []
     first: ProbeProduct | None = None
     valid = invalid = package_rows = 0
-    items_container = None
-    try:
-        events = ElementTree.iterparse(
-            io.BytesIO(xml),
-            events=("start", "end"),
-            forbid_dtd=True,
-            forbid_entities=True,
-            forbid_external=True,
-        )
-        for event, element in events:
-            tag = element.tag.rsplit("}", 1)[-1].lower()
-            if event == "start":
-                stack.append(tag)
-                if tag == "items":
-                    items_container = element
-                continue
-            if len(stack) == 2 and tag in ("chainid", "subchainid", "storeid"):
-                headers[tag] = (element.text or "").strip()
-            if tag == "item" and len(stack) >= 2 and stack[-2] == "items":
-                fields = {
-                    child.tag.rsplit("}", 1)[-1].lower(): (child.text or "").strip()
-                    for child in element
-                }
-                price = _positive(fields.get("itemprice"))
-                code, name = fields.get("itemcode"), fields.get("itemname") or fields.get("itemnm")
-                if price is not None and code and name:
-                    quantity, unit = (
-                        _positive(fields.get("quantity")),
-                        fields.get("unitqty") or None,
-                    )
-                    package_rows += int(quantity is not None and unit is not None)
-                    valid += 1
-                    if first is None:
-                        first = ProbeProduct(code, name, price, quantity, unit)
-                else:
-                    invalid += 1
-                element.clear()
-                if items_container is not None:
-                    items_container.remove(element)
-            stack.pop()
-    except (ParseError, DefusedXmlException, ValueError):
-        raise SourceError("INVALID_CATALOG") from None
+    for fields in iter_price_items(xml, headers):
+        price = _positive(fields.get("itemprice"))
+        code, name = fields.get("itemcode"), fields.get("itemname") or fields.get("itemnm")
+        if price is not None and code and name and "__ambiguous_row__" not in fields:
+            quantity, unit = _positive(fields.get("quantity")), fields.get("unitqty") or None
+            package_rows += int(quantity is not None and unit is not None)
+            valid += 1
+            if first is None:
+                first = ProbeProduct(code, name, price, quantity, unit)
+        else:
+            invalid += 1
     if not all(headers.get(key) for key in ("chainid", "subchainid", "storeid")):
         raise SourceError("MISSING_IDENTITY")
     if expected_chain is not None and headers["chainid"] != expected_chain:
