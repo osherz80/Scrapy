@@ -1,0 +1,148 @@
+{
+  "source": {
+    "repository": "Neuton-AI/Neuton-Back",
+    "commit": "da310c2178ba9034773c14ae2bf087668423beff",
+    "path": "src/lib/supermarket/prices.ts",
+    "functions": [
+      "normalizeQuery",
+      "tokenize"
+    ],
+    "node": "v24.14.0"
+  },
+  "cases": [
+    {
+      "input": "  רוטב טבסקו 60 מ\"ל  ",
+      "normalized": "רוטב טבסקו 60 מ\"ל",
+      "tokens": [
+        "רוטב",
+        "טבסקו",
+        "60",
+        "מל"
+      ]
+    },
+    {
+      "input": "חלב 3.5% - תנובה, ליטר",
+      "normalized": "חלב 3.5% - תנובה, ליטר",
+      "tokens": [
+        "חלב",
+        "3.5%",
+        "תנובה",
+        "ליטר"
+      ]
+    },
+    {
+      "input": "מלח גס א׳ ב״",
+      "normalized": "מלח גס א׳ ב״",
+      "tokens": [
+        "מלח",
+        "גס",
+        "א",
+        "ב"
+      ]
+    },
+    {
+      "input": "קּמח קָמח",
+      "normalized": "קּמח קָמח",
+      "tokens": [
+        "קמח",
+        "קָמח"
+      ]
+    },
+    {
+      "input": "A..B a.b .5 5. 1.25",
+      "normalized": "a..b a.b .5 5. 1.25",
+      "tokens": [
+        "a",
+        "b",
+        "a",
+        "b",
+        "5",
+        "5",
+        "1.25"
+      ]
+    },
+    {
+      "input": "١.٢ １.２",
+      "normalized": "١.٢ １.２",
+      "tokens": [
+        "١",
+        "٢",
+        "１",
+        "２"
+      ]
+    },
+    {
+      "input": "MILK milk MILK",
+      "normalized": "milk milk milk",
+      "tokens": [
+        "milk",
+        "milk",
+        "milk"
+      ]
+    },
+    {
+      "input": "﻿Milk -1.5L　",
+      "normalized": "milk -1.5l",
+      "tokens": [
+        "milk",
+        "1.5l"
+      ]
+    },
+    {
+      "input": "Milk\u001c",
+      "normalized": "milk\u001c",
+      "tokens": [
+        "milk\u001c"
+      ]
+    },
+    {
+      "input": "a—b a–b a_b a/b `quoted`",
+      "normalized": "a—b a–b a_b a/b `quoted`",
+      "tokens": [
+        "a—b",
+        "a–b",
+        "a_b",
+        "a/b",
+        "`quoted`"
+      ]
+    },
+    {
+      "input": "İΣ ΟΣ 𐐀",
+      "normalized": "i̇ς ος 𐐨",
+      "tokens": [
+        "i̇ς",
+        "ος",
+        "𐐨"
+      ]
+    },
+    {
+      "input": "",
+      "normalized": "",
+      "tokens": []
+    },
+    {
+      "input": "  \t\n ",
+      "normalized": "",
+      "tokens": []
+    },
+    {
+      "input": "טונה,טונה-שמן",
+      "normalized": "טונה,טונה-שמן",
+      "tokens": [
+        "טונה",
+        "טונה",
+        "שמן"
+      ]
+    },
+    {
+      "input": "a b c d",
+      "normalized": "a b c d",
+      "tokens": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    }
+  ]
+}
