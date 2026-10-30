@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from .chains import CHAINS
+from .chains import CHAINS, DEFERRED_CHAIN_IDS
 
 
 class ConfigurationError(ValueError):
@@ -55,8 +55,9 @@ def load_settings(
         except ValueError:
             raise ConfigurationError("DATABASE_URL must be a PostgreSQL connection URL") from None
     known_chains = tuple(chain.id for chain in CHAINS)
+    default_chains = tuple(chain for chain in known_chains if chain not in DEFERRED_CHAIN_IDS)
     enabled = tuple(
-        part.strip() for part in env.get("ENABLED_CHAINS", ",".join(known_chains)).split(",")
+        part.strip() for part in env.get("ENABLED_CHAINS", ",".join(default_chains)).split(",")
     )
     if (
         not enabled

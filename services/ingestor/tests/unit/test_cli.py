@@ -17,7 +17,7 @@ def test_check_config_logs_safe_summary_and_flushes():
     record = json.loads(stream.getvalue())
     assert code == 0
     assert record["event"] == "configuration.validated"
-    assert record["fields"]["chain_count"] == 10
+    assert record["fields"]["chain_count"] == 8
 
 
 def test_required_database_error_is_sanitized(capsys):
@@ -88,5 +88,5 @@ def test_probe_dispatches_validated_bounds_without_database(monkeypatch):
         return 1
 
     monkeypatch.setattr(trial, "run_probe", probe)
-    assert main(["probe", "--chains", "shufersal", "--max-branches", "1"], env={}) == 1
-    assert calls == [(("shufersal",), 1)]
+    assert main(["probe", "--chains", "rami-levy", "--max-branches", "1"], env={}) == 1
+    assert calls == [(("rami-levy",), 1)]

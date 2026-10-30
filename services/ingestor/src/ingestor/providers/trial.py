@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from time import monotonic
 from uuid import uuid4
 
+from ..chains import DEFERRED_CHAIN_IDS
 from ..config import Settings
 from ..logging.types import Logger
 from .http import BoundedClient
@@ -34,6 +35,8 @@ class ProbeFile:
 
 class CandidateSource:
     def __init__(self, chain: str, settings: Settings, deadline: float):
+        if chain in DEFERRED_CHAIN_IDS:
+            raise SourceError("SOURCE_DEFERRED")
         try:
             import israeli_prices as candidate
         except ImportError:

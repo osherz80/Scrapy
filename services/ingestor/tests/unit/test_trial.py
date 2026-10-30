@@ -2,6 +2,8 @@ import io
 import json
 from datetime import datetime
 
+import pytest
+
 from ingestor.config import load_settings
 from ingestor.logging import create_logger
 from ingestor.logging.transports import ConsoleTransport
@@ -163,3 +165,13 @@ def test_duplicate_catalog_identity_never_counts_as_two_branches(monkeypatch):
     )
     assert "DUPLICATE_BRANCH" in stream.getvalue()
     assert stream.getvalue().count('"event": "probe.branch.succeeded"') == 1
+
+
+@pytest.mark.parametrize("chain", ["carrefour", "shufersal"])
+def test_deferred_candidate_fails_before_constructing_a_network_client(monkeypatch, chain):
+    def forbidden(*args, **kwargs):
+        pytest.fail("deferred source must never open a client")
+
+    monkeypatch.setattr(trial, "BoundedClient", forbidden)
+    with pytest.raises(SourceError, match="SOURCE_DEFERRED"):
+        trial.CandidateSource(chain, load_settings({}), 0)

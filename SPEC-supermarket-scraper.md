@@ -28,6 +28,12 @@ Chain IDs are stable public identifiers:
 
 Every daily run randomly selects three distinct branches per chain anew. Use latest available PriceFull files only. No deltas, promotions, price history, raw-file retention, or branch-price persistence. Store one current row per product per chain, with its sampled arithmetic mean in `price`. Re-randomization may change an estimate without any underlying branch price change.
 
+Operational deferral (user decision, 2026-10-30): retain all ten public IDs, but
+defer Carrefour and Shufersal source recovery. Default collection currently uses
+the other eight chains. Deferred sources must not be reported as refreshed or
+erase existing catalogs. Track recovery in `tasks/deferred.md`; this does not
+change sampling, averaging or retention rules for active chains.
+
 ## 3. Topology and technologies
 
 ```mermaid

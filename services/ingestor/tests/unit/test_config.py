@@ -11,7 +11,9 @@ def test_defaults_are_spec_defaults_without_database_requirement():
     assert settings.run_lease_seconds == 300
     assert settings.run_timeout_minutes == 45
     assert settings.heartbeat_seconds == 30
-    assert len(settings.enabled_chains) == 10
+    assert len(settings.enabled_chains) == 8
+    assert "shufersal" not in settings.enabled_chains
+    assert "carrefour" not in settings.enabled_chains
     assert settings.log_provider == "console"
     assert settings.log_level == "info"
 

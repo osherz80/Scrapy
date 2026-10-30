@@ -107,7 +107,7 @@ Review [provider evidence](docs/provider-evidence.md) before making coverage cla
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |
-| ENABLED_CHAINS | All ten registry IDs; comma-separated distinct subset |
+| ENABLED_CHAINS | Eight active chains by default; comma-separated distinct registry IDs |
 | PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
 | PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000, positive integer |
 | REFRESH_STALE_HOURS | 48, positive integer |

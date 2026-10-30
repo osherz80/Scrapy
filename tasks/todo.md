@@ -24,7 +24,7 @@ Files: `logging/{__init__,types,transports}.py`, `tests/unit/test_logging.py`, `
 - [x] Redaction includes nested fields, credential URLs, and exceptions; delivery/flush failure cannot change worker state; shutdown is bounded.
 - [x] Verification: 13 logger tests cover capture transport, JSON/UTC schema, redaction, context snapshots, all severity thresholds, bounded recursive context, delivery failure and blocked flush. Full suite: 15 passed; Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
-Current boundary: tasks 1–4 are complete. Task 5 has a functioning, guarded probe and local all-ten-chain evidence (8 passing, Shufersal timeout, Carrefour identity conflict); provider recovery/fallback runtime selection remains open. Task 7's bounded HTTP/archive primitives and secure trial inspection were brought forward before live collection. There has been no database connection or publication. Branch push succeeded at fc8b50a after the earlier 403 was resolved. See `docs/provider-evidence.md` for exact run IDs, measured byte counts and unresolved gates.
+Current boundary: tasks 1–4 are complete. User deferred Carrefour/Shufersal recovery on 2026-10-30; track it in `tasks/deferred.md` and continue task 6 with the eight locally passing chains. Task 7's HTTP/archive safety primitives and secure trial inspection were brought forward. No database connection or publication has occurred. See `docs/provider-evidence.md` for measured evidence and remaining hosted/eligibility gates.
 
 Cleanup limitation: automatic approval review rejected recursive deletion of the verified task-created temporary/cache directories, including an explicit-literal-path retry, with `blocked by policy`. `Temp/`, initial Ruff/pytest caches, source/test bytecode caches and the empty runtime download scratch directory remain ignored locally. Future pytest/Ruff caches are configured under root `Temp/`. Cleanup remains unfinished; no alternate deletion mechanism was used to bypass the rejection.
 
@@ -41,7 +41,7 @@ Files: `config.py`, `cli.py`, `tests/unit/test_config.py`, `tests/unit/test_cli.
 ## 5. Provider feasibility trial
 Dependencies: 4. Scope: medium.
 Files: `providers/trial.py`, `providers/inspection.py`, focused tests, `docs/provider-evidence.md`; dependencies use the existing `pyproject.toml` probe extra and `uv.lock` rather than a second requirements file.
-- [ ] Inspect and trial israeli-prices first; record pinned version, listing/full retrieval interfaces, disk/retry behavior; fallback evidence if needed.
+- [x] Inspect and trial israeli-prices first; retain the guarded candidate for eight locally passing sources. User explicitly deferred Carrefour/Shufersal recovery and fallback evaluation to `tasks/deferred.md`.
 - [x] Trial evaluates timestamp/identity/source package-pair coverage and memory path; explicitly list failed/unverified chains. Unit normalization and physical-branch classification are not claimed.
 - [x] Verification: opt-in bounded local trial evaluated all ten, 8 passed; no raw-file artifacts. Deterministic failure/sanitization tests pass. Hosted coverage remains task 20.
 
