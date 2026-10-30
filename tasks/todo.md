@@ -14,8 +14,8 @@ Bootstrap caveat: uv's first Python installation reported a user-level executabl
 ## 2. Stable chain registry
 Dependencies: 1. Scope: small.
 Files: `src/ingestor/chains.py`, `tests/unit/test_chains.py` (under `services/ingestor`).
-- [ ] Registry contains exactly the ten specified IDs with human display names; immutable records, no invented provider mappings.
-- [ ] Verification: pytest checks exact set, uniqueness, and stable identifiers.
+- [x] Registry contains exactly the ten specified IDs with human display names; immutable records, no invented provider mappings.
+- [x] Verification: 2 pytest cases pass (exact set/uniqueness/nonempty display names and immutable identity); Ruff lint/format pass.
 
 ## 3. Replaceable console logger
 Dependencies: 1. Scope: medium (5 files).
