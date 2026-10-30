@@ -231,9 +231,9 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         version=env.get("APP_VERSION") or env.get("GITHUB_SHA") or "unknown",
     )
     try:
-        url = env.get("MIGRATION_DATABASE_URL")
+        url = env.get("MIGRATION_DATABASE_URL") or env.get("DATABASE_URL")
         if not url:
-            raise MigrationError("MIGRATION_DATABASE_URL_REQUIRED")
+            raise MigrationError("DATABASE_URL_REQUIRED")
         if args.operation == "rollback":
             if not args.version or not re.fullmatch(r"\d{3,}", args.version):
                 raise MigrationError("ROLLBACK_VERSION_REQUIRED")

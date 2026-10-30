@@ -30,8 +30,10 @@ names cause migration failure instead of being silently altered.
 An administrator must separately provision each actual LOGIN with only the
 appropriate group membership and set its password using the hosting platform or
 an interactive administration tool. No password is embedded in migration files.
-The daily worker's DATABASE_URL must use its ingestion login; the migration
-administrator URL is separate and must not become the worker credential.
+The existing DATABASE_URL can be used for setup when its user has schema/role
+administration permissions. A separate MIGRATION_DATABASE_URL is optional if
+credentials are split later. For production operation, the daily worker should
+use an ingestion-only login rather than administrator permissions.
 
 PUBLIC schema/table/function access is revoked. Existing `anon`/`authenticated`
 grants are explicitly revoked when those Supabase roles exist. Do not expose this
@@ -47,8 +49,9 @@ admission, ownership and fencing; those rules are not fully enforced by DDL.
 
 ## Explicit administration
 
-Supply `MIGRATION_DATABASE_URL` through the launching process or secret injection.
-No environment file is read, no fallback to DATABASE_URL occurs, and credentials
+Use the existing `DATABASE_URL` through the launching process or secret injection.
+An optional nonempty `MIGRATION_DATABASE_URL` overrides it; no additional variable
+is required for setup. No environment file is read, and credentials
 are not accepted as command arguments or emitted in logs. The administrator needs
 permission to create the private schema, objects and permission roles.
 

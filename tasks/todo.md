@@ -130,10 +130,11 @@ Files: `db/migrations/001_ingestion.sql`, `db/rollback/001_ingestion.sql`, `repo
 - [x] Explicit status/apply/latest-version rollback CLI, paired SQL, transaction advisory locking, forward/rollback checksum history, atomic batches, sanitized errors and verified remote TLS defaults. No environment files loaded or credentials embedded.
 - [x] Verification: 32 real PostgreSQL integration cases and 244 offline cases passed (276 total) on an isolated PostgreSQL 18.3 cluster under Temp. Schema/index introspection, role denial, Supabase-style anonymous default grants, finite/positive prices, exact codes, rollback/reapply, failed-batch rollback, checksum drift, CLI operations and concurrent runners verified. Actual Supabase capacity remains a hosted measurement gate, not inferred from empty local tables.
 
-Actual Supabase was not accessed. Production administration requires a separately
-supplied MIGRATION_DATABASE_URL in process environment, reviewed apply and
-least-privilege LOGIN provisioning; do not substitute the administrator URL for
-the ingestion worker URL. See `docs/database.md`. The temporary local server is
+Actual Supabase was not accessed. Per user instruction, administration uses the
+existing DATABASE_URL, with optional MIGRATION_DATABASE_URL override. No extra
+variable is required when DATABASE_URL has the needed privileges. Reviewed apply
+and production ingestion-only LOGIN provisioning remain deployment work.
+See `docs/database.md`. The temporary local server is
 stopped after validation; temporary-file deletion remains subject to the prior
 automatic approval-review rejection.
 

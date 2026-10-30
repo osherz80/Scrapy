@@ -59,7 +59,7 @@ def test_cli_missing_admin_url_is_safe_and_makes_no_connection(monkeypatch, caps
     monkeypatch.setattr(psycopg, "connect", lambda *args, **kwargs: pytest.fail("must not connect"))
     assert main(["status"], env={}) == 2
     record = json.loads(capsys.readouterr().err)
-    assert record["fields"]["error_code"] == "MIGRATION_DATABASE_URL_REQUIRED"
+    assert record["fields"]["error_code"] == "DATABASE_URL_REQUIRED"
 
 
 def test_cli_does_not_echo_invalid_connection_secrets(capsys):
@@ -97,3 +97,26 @@ def test_admin_cli_requires_version_for_rollback_without_connecting(monkeypatch,
     url = "postgresql://admin:synthetic-secret@db.test/db"
     assert main(["rollback"], env={"MIGRATION_DATABASE_URL": url}) == 2
     assert "ROLLBACK_VERSION_REQUIRED" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("override", [None, "", "postgresql://admin:override-secret@db.test/admin"])
+def test_existing_database_url_is_used_unless_a_nonempty_override_is_supplied(
+    monkeypatch, capsys, override
+):
+    from ingestor.repository import migrate
+
+    database_url = "postgresql://admin:default-secret@db.test/db"
+    env = {"DATABASE_URL": database_url}
+    if override is not None:
+        env["MIGRATION_DATABASE_URL"] = override
+    received = []
+
+    def connect(url, **kwargs):
+        received.append(url)
+        raise RuntimeError("synthetic connection failure")
+
+    monkeypatch.setattr(migrate.psycopg, "connect", connect)
+    assert main(["status"], env=env) == 2
+    assert received == [override or database_url]
+    output = capsys.readouterr().err
+    assert "default-secret" not in output and "override-secret" not in output

@@ -97,7 +97,7 @@ def test_cli_status_apply_and_rollback_use_only_explicit_admin_environment(migra
         f"postgresql://{migration_db.info.user}@127.0.0.1:"
         f"{migration_db.info.port}/{migration_db.info.dbname}"
     )
-    env = {"MIGRATION_DATABASE_URL": url}
+    env = {"DATABASE_URL": url}
     assert main(["status"], env=env) == 0
     assert main(["apply"], env=env) == 0
     assert main(["rollback", "--version", "001"], env=env) == 0

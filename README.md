@@ -137,8 +137,9 @@ the refresh worker and database publication are still open.
 Private schema, least-privilege groups, checksum migration history and explicit
 administration commands are implemented; see [database setup](docs/database.md).
 They have been tested on disposable local PostgreSQL, not applied to Supabase.
-Supply a separate `MIGRATION_DATABASE_URL` through process environment for admin
-commands; the worker's `DATABASE_URL` should use a least-privilege ingestion login.
+Admin commands use the existing `DATABASE_URL` from process environment.
+`MIGRATION_DATABASE_URL` is an optional override for separate credentials later;
+the worker's production URL should eventually use an ingestion-only login.
 No command loads `.env`.
 
 ```powershell
