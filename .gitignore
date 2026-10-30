@@ -211,6 +211,12 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# Project-local runtime, tools, and temporary verification output
+/.runtime/
+/.venv312/
+/Temp/
+.env.*
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

@@ -1,13 +1,15 @@
 # Scraper implementation tasks
 
-Status: plan created; implementation begins at task 1. Check items only after evidence is recorded. Paths below are relative to this scraper repository. Each task is a separate commit; no remote push or deployment is implied.
+Status: implementing foundation. Check items only after evidence is recorded. Paths below are relative to this scraper repository. Each task is a separate commit; no remote push or deployment is implied.
 
 ## 1. Reproducible Python bootstrap
 Dependencies: none. Scope: medium (up to 5 files).
 Files: `services/ingestor/pyproject.toml`, `uv.lock`, `.python-version`, `.gitignore`, `README.md`.
-- [ ] Python 3.12 runtime and editable package install work; exact dependencies are locked.
-- [ ] Test/lint/format/build commands are documented; tools keep temporary files under `Temp/`.
-- [ ] Verification: frozen dependency sync, Python version, wheel build, Ruff.
+- [x] Python 3.12 runtime and editable package install work; exact dependencies are locked.
+- [x] Test/lint/format/build commands are documented; tool caches/build scratch are directed to `Temp/`.
+- [x] Verification: locked offline sync, Python 3.12.16, sdist/wheel build and Ruff. Initial future-slice tests fail with missing modules, as expected before implementation.
+
+Bootstrap caveat: uv's first Python installation reported a user-level executable shim outside the project; the installer default was missed. It was not accessed or removed under the folder restriction. Documented installation now uses `--no-bin --no-registry`; subsequent tool operations use only the project-local runtime.
 
 ## 2. Stable chain registry
 Dependencies: 1. Scope: small.
