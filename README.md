@@ -122,6 +122,12 @@ validate the catalog before returning; lazy, empty and failed results cannot
 contribute observations. This policy is unit-tested but is not yet wired to
 production parsing, aggregation or database publication.
 
+The production parser and package normalizer are now implemented and tested
+independently; [catalog validation](docs/catalog-validation.md) documents their
+contracts, duplicate handling, source-time rules and local source evidence.
+The live probe remains a basic diagnostic and does not assert full production
+eligibility. Wiring publisher metadata, aggregation and publication is still open.
+
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |

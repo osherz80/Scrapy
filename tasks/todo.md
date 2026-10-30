@@ -73,16 +73,25 @@ Files: `providers/stream.py`, `tests/unit/test_stream.py`, `tests/fixtures/strea
 ## 8. Strict catalog parsing
 Dependencies: 7. Scope: medium.
 Files: `parsing.py`, `models.py`, `tests/unit/test_parsing.py`, `tests/fixtures/catalogs.py`.
-- [ ] Disable entities/DTD; preserve string codes, finite positive Decimal prices and item/catalog timestamp separation; interpret local times in Israel.
-- [ ] Reject invalid/empty catalogs and missing catalog times unless verified listing provides them; count invalid rows without retaining partial failed branches.
-- [ ] Verification: leading zeros, malformed XML, entity payloads, invalid rows and timestamps.
+- [x] Disable entities/DTD; preserve string codes, finite positive Decimal prices and item/catalog timestamp separation; interpret local times in Israel.
+- [x] Reject invalid/empty catalogs and missing catalog times unless verified listing provides them; count invalid rows without retaining partial failed branches.
+- [x] Verification: 24 parser cases plus 6 timestamp cases cover leading zeros, malformed tails, unsafe XML, duplicate SKUs/headers/fields, UTC/DST, aliases, UTF-16, unrepresentable optional dates and missing dimensions. Production parser also accepted one live catalog from each active chain; see `docs/catalog-validation.md`.
 
 ## 9. Package compatibility
 Dependencies: 8. Scope: medium.
 Files: `packaging.py`, `tests/unit/test_packaging.py`, `contracts/fixtures/package_cases.json`.
-- [ ] Equivalent units normalize; source quantity/unit remain a coherent pair; weighted flags and verified packaging signatures govern compatibility.
-- [ ] Unknown dimensions stay null; no density/name guessing; Tabasco 60 ml and QtyInPackage=0 semantics covered.
-- [ ] Verification: equivalent ml/l, mass/volume rejection, missing dimensions, conflicting flags/signatures, coherent conversion amount.
+- [x] Equivalent units normalize; source quantity/unit remain a coherent pair; weighted flags and agreeing complete packaging signatures govern compatibility.
+- [x] Unknown dimensions stay null; no density/name guessing; synthetic spec Tabasco 60 ml and QtyInPackage=0 semantics covered. Unverified QtyInPackage semantics are deliberately not used for identity or multiplication.
+- [x] Verification: 12 package cases cover equivalent ml/l, mass/volume rejection, missing dimensions, conflicting flags/signatures and source/base pair coherence. An end-to-end offline collection test proves malformed-branch replacement before normalization.
+
+Tasks 8–9 were implemented ahead of publisher-specific task 6 mapping because
+they can be verified independently and are prerequisites for actual collection.
+The callback path is tested with fixtures; no database writes or daily refresh
+have run. Publisher roster/eligibility mapping remains open.
+Verification after tasks 8–9: 184 tests passed; Ruff lint/format and sdist/wheel
+build passed on Python 3.12.16. Local parser checks accepted all eight active
+sources without storing raw catalogs. Existing temporary-cache cleanup remains
+blocked by the earlier automatic approval review, as recorded above.
 
 ## 10. Chain aggregation
 Dependencies: 9. Scope: medium.
