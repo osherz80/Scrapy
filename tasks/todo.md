@@ -26,6 +26,8 @@ Files: `logging/{__init__,types,transports}.py`, `tests/unit/test_logging.py`, `
 
 Current boundary: tasks 1–3 are implemented. Configuration/CLI, provider evaluation, SQL and hosted execution remain unchecked; there has been no database connection or source-portal collection. No missing input blocks this completed foundation slice.
 
+Cleanup limitation: automatic approval review rejected recursive deletion of the verified task-created temporary/cache directories, including an explicit-literal-path retry, with `blocked by policy`. `Temp/`, initial Ruff/pytest caches, source/test bytecode caches and the empty runtime download scratch directory remain ignored locally. Future pytest/Ruff caches are configured under root `Temp/`. Cleanup remains unfinished; no alternate deletion mechanism was used to bypass the rejection.
+
 ## 4. Validated startup and CLI
 Dependencies: 2, 3. Scope: medium.
 Files: `config.py`, `cli.py`, `tests/unit/test_config.py`, `tests/unit/test_cli.py`, `README.md`.
