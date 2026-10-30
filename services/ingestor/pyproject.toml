@@ -7,7 +7,7 @@ name = "neuton-supermarket-ingestor"
 version = "0.1.0"
 description = "Sampled supermarket catalog ingestion worker"
 requires-python = ">=3.12,<3.13"
-dependencies = ["httpx==0.28.1", "defusedxml==0.7.1", "tzdata==2026.6"]
+dependencies = ["httpx==0.28.1", "defusedxml==0.7.1", "tzdata==2026.6", "psycopg[binary]==3.3.6"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "build", "hatchling==1.30.1"]

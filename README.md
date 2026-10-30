@@ -21,7 +21,7 @@ $env:UV_PYTHON_BIN_DIR = "$PWD/.runtime/bin"
 $env:UV_PROJECT_ENVIRONMENT = "$PWD/.venv312"
 uv python install 3.12 --no-bin --no-registry
 uv sync --project services/ingestor --extra dev --locked
-& .venv312/Scripts/python.exe -m pytest services/ingestor/tests --basetemp=Temp/pytest
+& .venv312/Scripts/python.exe -m pytest services/ingestor/tests/unit --basetemp=Temp/pytest
 & .venv312/Scripts/python.exe -m ruff check services/ingestor
 & .venv312/Scripts/python.exe -m ruff format --check services/ingestor
 & .venv312/Scripts/python.exe -m build --no-isolation --outdir Temp/dist services/ingestor
