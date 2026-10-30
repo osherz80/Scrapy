@@ -45,7 +45,7 @@ def _parser() -> argparse.ArgumentParser:
     refresh.add_argument("--run-id", required=True, type=UUID)
     scheduled = commands.add_parser("scheduled", help="Reserved: run Israel daily scheduling")
     scheduled.add_argument("--timezone", choices=["Asia/Jerusalem"], default="Asia/Jerusalem")
-    probe = commands.add_parser("probe", help="Reserved: bounded provider feasibility probe")
+    probe = commands.add_parser("probe", help="Run a bounded provider feasibility probe")
     probe.add_argument("--chains", type=_chains)
     probe.add_argument("--max-branches", type=_branches, default=1)
     return parser
@@ -89,6 +89,10 @@ def main(
                 "configuration.validated", "Process configuration is valid", chain_count=len(chains)
             )
             return 0
+        if args.command == "probe":
+            from .providers.trial import run_probe
+
+            return run_probe(chains, settings, logger, max_branches=args.max_branches)
         logger.error("command.unavailable", "Collection command is not enabled yet")
         return 3
     finally:

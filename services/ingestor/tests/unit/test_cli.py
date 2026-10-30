@@ -76,3 +76,17 @@ def test_help_subprocess_needs_no_database_configuration():
     assert result.returncode == 0
     assert "check-config" in result.stdout
     assert result.stderr == ""
+
+
+def test_probe_dispatches_validated_bounds_without_database(monkeypatch):
+    from ingestor.providers import trial
+
+    calls = []
+
+    def probe(chains, settings, logger, *, max_branches):
+        calls.append((chains, max_branches))
+        return 1
+
+    monkeypatch.setattr(trial, "run_probe", probe)
+    assert main(["probe", "--chains", "shufersal", "--max-branches", "1"], env={}) == 1
+    assert calls == [(("shufersal",), 1)]

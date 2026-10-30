@@ -70,9 +70,39 @@ durable operational status when that slice is implemented.
 `python -m ingestor.cli check-config` validates process settings only;
 add `--require-database` to require a PostgreSQL URL. It does not test connectivity,
 TLS, schema, privileges or source reachability. Exit codes: 0 valid, 2 invalid
-configuration/arguments, 3 collection command not enabled. `refresh`, `scheduled`
-and `probe` currently validate inputs then exit explicitly with code 3; they do
-not perform collection or report successful runs.
+configuration/arguments, 3 collection command not enabled. `refresh` and
+`scheduled` currently validate inputs then exit explicitly with code 3; neither
+publishes data or reports a successful refresh.
+
+### Optional source feasibility probe
+
+Install the locked candidate extra with the same project-local tool/cache settings:
+
+```powershell
+uv sync --project services/ingestor --extra dev --extra probe --locked
+& .venv312/Scripts/python.exe -m ingestor.cli probe --chains rami-levy --max-branches 1
+```
+
+Omit `--chains` to evaluate every enabled chain sequentially. `--max-branches`
+is a strict per-chain attempt cap (1..3); this diagnostic is separate from daily
+random sampling and replacements. It never connects to the database, publishes
+rows, or saves raw catalogs. Exit 1 means at least one chain failed validation.
+Missing optional dependency produces a sanitized `PROBE_DEPENDENCY_MISSING` event.
+
+The wrapper uses single-attempt HTTP, approved HTTPS hosts, a 40-request per-chain
+budget (including authentication and redirects), at most five redirects per
+request, and a 120-second per-chain deadline checked at network boundaries.
+Each response and decompressed catalog is capped by
+`PROVIDER_MAX_DECOMPRESSED_BYTES`; socket timeouts and overall deadlines also
+apply. No environment proxy configuration is inherited. Portals that ignore
+identity HTTP encoding currently fail explicitly rather than decompress without
+a bound. Only one branch payload is inspected at a time, with XML entities/DTD
+disabled; exceptions never dump source content.
+
+Success means a full XML catalog passed basic price/identity validation locally.
+Physical-branch eligibility, complete-roster pagination, package reconciliation,
+random sampling, SQL publication and hosted reachability remain separate gates.
+Review [provider evidence](docs/provider-evidence.md) before making coverage claims.
 
 | Process variable | Default / requirement |
 |---|---|
