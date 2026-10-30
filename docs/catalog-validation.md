@@ -71,3 +71,63 @@ still open. The parser validation used header subchain/store identity after
 checking listing store equivalence; it does not prove the complete-roster mapping.
 Hosted execution, aggregation, SQL publication and resource capacity remain later
 gates. Carrefour and Shufersal were not accessed in this verification.
+
+## Chain reconciliation
+
+`aggregate_catalogs` now reconciles 0..3 distinct validated branch catalogs.
+Duplicate branch inputs, more than three branches, mixed public/source chains,
+naive catalog timestamps and duplicate observations inside a supplied catalog
+fail closed. Conflicted SKUs reported by any branch are excluded across the run.
+Cross-branch package/weighted conflicts also exclude the entire SKU. Descriptive
+name/manufacturer differences do not create new identities or fuzzy grouping.
+
+The mean uses only actual positive observations and rounds once to four decimal
+places using HALF_UP. Missing branch observations never become zeros. Arithmetic
+uses a fresh Decimal context with enough precision for the source operands;
+caller precision/rounding traps cannot alter results. To bound numeric work from
+untrusted feeds, prices with more than 1000 coefficient digits or an exponent
+outside -1000..1000 are rejected for that product (`NUMERIC_LIMIT`), never
+approximated. Rounded nonpositive results and means outside numeric(14,4) are
+also excluded and counted. Raw source prices are never persisted or logged.
+
+Metadata is selected from the newest contributing catalog publication (the
+observation time), then ascending composite branch ID. PriceUpdateTime describes
+price change, so it is preserved but does not rank name/manufacturer observations.
+The selected source quantity/unit pair remains coherent with normalized dimensions.
+Products keep oldest/newest contributing catalog times separately; chain freshness
+uses the oldest actual published product watermark, not the new ingestion time.
+
+Unknown complete agreeing package signatures may yield search-only averages with
+null conversion fields. A single unknown-package observation also remains
+searchable. Multiple empty/ambiguous signatures are excluded. Product sample
+counts stay 1..3, and leading-zero SKU strings stay distinct. Comparison unit
+prices are not copied from branches: future API derivation must use the mean.
+
+`AggregationResult.can_publish` is false for zero successful branches or zero
+remaining rows. Publication code must check this before replacing any catalog;
+an empty result is not permission to delete old data. Database enforcement and
+rollback tests remain task 15.
+
+## Backend normalization parity
+
+The importer uses the backend normalizeQuery/tokenize rules from
+[Neuton-Back da310c2](https://github.com/Neuton-AI/Neuton-Back/blob/da310c2178ba9034773c14ae2bf087668423beff/src/lib/supermarket/prices.ts).
+Fifteen golden cases were generated with the audited pure JavaScript functions
+using Node 24.14.0; provenance lives in `contracts/fixtures/normalization.json`.
+They cover Hebrew punctuation/dagesh, decimal dots, Unicode whitespace, repeated
+tokens and representative case conversion. Python uses explicit ECMAScript
+whitespace and ASCII digit rules; generic Python strip/regex whitespace would
+change behavior. This is fixture parity, not exhaustive parity across future
+Unicode-version changes. The existing backend was read remotely and not modified.
+
+## Collection composition
+
+`collect_chain` connects complete inventory -> sampling/replacements -> bounded
+archive handling -> full parsing -> reconciliation using an injected Provider.
+The caller owns provider lifetime and run/lease control. It returns averaged
+products plus attempted/successful branch IDs and counts, not retained branch
+catalogs. Structured events contain timings and counts only. Incomplete inventory
+fails before sampling; total source failure produces a nonpublishable result.
+Fixture tests cover 0/1/2/3 successful branches and replacement of a failed branch.
+The actual publisher roster/eligibility adapter is still open; this function is
+not wired into the reserved refresh CLI or database worker yet.
