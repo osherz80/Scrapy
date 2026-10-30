@@ -92,6 +92,27 @@ Commands exit 0 on success or 2 with a sanitized JSON error code on failure.
 Help opens no connection. Migration SQL and driver exception messages are never
 dumped in logs.
 
+## Run admission library
+
+`repository.admission.admit_run` accepts a dedicated idle autocommit connection
+and an explicit tuple of authorized chain IDs. It validates registry/enabled
+state, takes transaction advisory locks in canonical chain order, and commits
+the PENDING run, per-chain records and 30-minute reservations together. A conflict
+rolls back the complete request. Disjoint admitted runs can coexist; control-role
+credentials suffice. Deferred chains remain unavailable even if enabled manually.
+
+`record_dispatch` records ACKNOWLEDGED, UNCERTAIN or REJECTED delivery outcomes.
+Uncertainty retains the original reservation without extending its expiry;
+definitive rejection fails pending records and releases only that run's leases.
+Updates lock the run row and ignore claimed/terminal/scheduled runs and stale
+notifications. The worker claim must use the same run-row lock. These functions
+do not send HTTP requests, read environment files or expose backend endpoints.
+
+Expired leases currently fail closed rather than being silently stolen. Task 16
+will reconcile abandoned run records before admission/status retry; automated
+expiry recovery and worker ownership are separate slices. Do not treat this
+library alone as an operational refresh service.
+
 ## Verification
 
 `python -m pytest` or the explicit `services/ingestor/tests/unit` path runs offline

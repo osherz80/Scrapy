@@ -141,9 +141,16 @@ automatic approval-review rejection.
 ## 13. Atomic run admission
 Dependencies: 12. Scope: medium.
 Files: `runs/admission.py`, `repository/admission.py`, `tests/integration/test_admission.py`.
-- [ ] Ordered lease acquisition reserves all requested chains or none; create PENDING authorized run; disjoint requests may coexist.
-- [ ] Dispatch-pending TTL 30 minutes; uncertainty/rejection transitions preserve correct reservations.
-- [ ] Verification: concurrent conflicting/disjoint admissions, rollback and uncertain/definitive dispatch outcomes.
+- [x] Ordered lease acquisition reserves all requested chains or none; create PENDING authorized run; disjoint requests may coexist.
+- [x] Dispatch-pending TTL 30 minutes; uncertainty/rejection transitions preserve correct reservations.
+- [x] Verification: real PostgreSQL conflicting/disjoint races using control-role connections, whole-request conflict rollback, injected permission failure after run insertion, uncertainty/acknowledgement/rejection, late rejection after claim, disabled/deferred sources, TTL and nested-transaction rejection. Nine offline validation cases also cover static sanitized errors and canonical order.
+
+Admission/dispatch are library functions only; no workflow request or backend
+endpoint is introduced. Expired leases deliberately remain reserved until task
+16 reconciles old run state; they are never silently stolen. Worker claim must
+lock the same run row before transitioning PENDING to RUNNING (task 14).
+Full verification: 304 tests passed (48 real PostgreSQL integration cases),
+Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## 14. Ownership and heartbeat
 Dependencies: 13. Scope: medium.
