@@ -63,3 +63,32 @@ seconds). A stalled flush runs in a daemon thread and cannot block process exit.
 There is no centralized logging storage, dashboard or automatic alert delivery.
 Future Actions logs use repository retention; database run records will supply
 durable operational status when that slice is implemented.
+
+## Configuration and CLI
+
+`python -m ingestor.cli --help` needs no secrets and opens no connections.
+`python -m ingestor.cli check-config` validates process settings only;
+add `--require-database` to require a PostgreSQL URL. It does not test connectivity,
+TLS, schema, privileges or source reachability. Exit codes: 0 valid, 2 invalid
+configuration/arguments, 3 collection command not enabled. `refresh`, `scheduled`
+and `probe` currently validate inputs then exit explicitly with code 3; they do
+not perform collection or report successful runs.
+
+| Process variable | Default / requirement |
+|---|---|
+| DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |
+| ENABLED_CHAINS | All ten registry IDs; comma-separated distinct subset |
+| PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
+| PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000, positive integer |
+| REFRESH_STALE_HOURS | 48, positive integer |
+| RUN_LEASE_SECONDS | 300, greater than heartbeat interval |
+| RUN_TIMEOUT_MINUTES | 45, positive integer |
+| HEARTBEAT_SECONDS | 30, positive integer smaller than lease TTL |
+| LOG_PROVIDER | console (only supported provider initially) |
+| LOG_LEVEL | info; debug/info/warn/error/fatal |
+| LOG_ENV | development |
+| APP_VERSION | GITHUB_SHA, then unknown if neither is supplied |
+
+Environment files are never loaded automatically. Supply settings through the
+launching process or hosted secret injection. Invalid-setting messages identify
+the variable without echoing its value; argument errors also withhold raw input.

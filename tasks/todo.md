@@ -24,19 +24,19 @@ Files: `logging/{__init__,types,transports}.py`, `tests/unit/test_logging.py`, `
 - [x] Redaction includes nested fields, credential URLs, and exceptions; delivery/flush failure cannot change worker state; shutdown is bounded.
 - [x] Verification: 13 logger tests cover capture transport, JSON/UTC schema, redaction, context snapshots, all severity thresholds, bounded recursive context, delivery failure and blocked flush. Full suite: 15 passed; Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
-Current boundary: tasks 1–3 are implemented. Configuration/CLI, provider evaluation, SQL and hosted execution remain unchecked; there has been no database connection or source-portal collection. No missing input blocks this completed foundation slice.
+Current boundary: tasks 1–4 are implemented. Provider evaluation, SQL and hosted execution remain unchecked; there has been no database connection or source-portal collection. No missing input blocks this completed foundation slice. Push of the foundation branch was attempted using both the configured Git helper and the active GitHub CLI helper; GitHub returned 403 to account osherz80. Remote write permission remains unverified.
 
 Cleanup limitation: automatic approval review rejected recursive deletion of the verified task-created temporary/cache directories, including an explicit-literal-path retry, with `blocked by policy`. `Temp/`, initial Ruff/pytest caches, source/test bytecode caches and the empty runtime download scratch directory remain ignored locally. Future pytest/Ruff caches are configured under root `Temp/`. Cleanup remains unfinished; no alternate deletion mechanism was used to bypass the rejection.
 
 ## 4. Validated startup and CLI
 Dependencies: 2, 3. Scope: medium.
 Files: `config.py`, `cli.py`, `tests/unit/test_config.py`, `tests/unit/test_cli.py`, `README.md`.
-- [ ] Validate spec defaults and allowed chain IDs using injected/process environment, never dotenv; missing values produce sanitized errors.
-- [ ] CLI validates UUID/timezone/probe bounds, selects logger once and flushes on exit; unwired collection commands fail explicitly.
-- [ ] Verification: CLI subprocess tests plus invalid/default configuration tests; no database/source access on help/import.
+- [x] Validate spec defaults and allowed chain IDs using injected/process environment, never dotenv; missing values produce sanitized errors.
+- [x] CLI validates UUID/timezone/probe bounds, selects logger once and flushes on exit; unwired collection commands fail explicitly.
+- [x] Verification: 46 configuration cases and 10 CLI cases, including help subprocess and sanitized errors. Full suite 71 passed; Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## Checkpoint: foundation
-- [ ] Tests, lint, formatting, build and CLI startup pass; no claim of operational collection.
+- [x] Tests, lint, formatting, build and CLI startup pass; no claim of operational collection.
 
 ## 5. Provider feasibility trial
 Dependencies: 4. Scope: medium.
