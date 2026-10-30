@@ -29,6 +29,11 @@ Source of truth: `SPEC-supermarket-scraper.md`, including section 9.1. Scope is 
 
 Each task has a focused verification gate in `todo.md`. Checkpoints follow tasks 4, 7, 11, 16, 19, and 22. A failed provider gate is recorded and investigated before claiming coverage; it does not justify fabricating mappings or weakening ingestion semantics.
 
+Execution refinement: bring bounded HTTP/decompression primitives from task 7
+forward into task 5 as safety prerequisites. The candidate's default paths are
+unbounded. This does not complete production adapter/eligibility acceptance;
+full task 7 verification still follows task 6.
+
 ## Verification strategy
 
 Use pytest deterministic tests for business rules and failure matrices, Ruff lint/format, and wheel builds. Write failing behavior tests before implementation. Use a disposable PostgreSQL database for transactional/concurrency/crash tests, never an implicitly selected production database. Integration tests require explicit `TEST_DATABASE_URL` from process environment; missing values are reported as unverified gates, not successful tests. Network smoke is opt-in; real hosted measurements are release evidence, not unit tests.
