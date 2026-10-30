@@ -65,6 +65,12 @@ class CatalogCandidate:
     file: PublishedFile | None
     metadata_error_code: str | None = None
 
+    def __post_init__(self) -> None:
+        if (self.file is None) == (self.metadata_error_code is None):
+            raise ValueError("Candidate requires exactly one file or metadata failure")
+        if self.file is not None and self.file.identity != self.branch.identity:
+            raise ValueError("Catalog file must match branch identity")
+
 
 class Provider(Protocol):
     def list_branches(self) -> tuple[Branch, ...]: ...

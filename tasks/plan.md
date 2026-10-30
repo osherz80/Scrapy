@@ -34,6 +34,12 @@ forward into task 5 as safety prerequisites. The candidate's default paths are
 unbounded. This does not complete production adapter/eligibility acceptance;
 full task 7 verification still follows task 6.
 
+User steering (2026-10-30): Carrefour/Shufersal recovery is deferred to
+`tasks/deferred.md`; eight chains are active by default. Task 5's source choice
+is accepted for those eight. Implement the pure task 11 sampling policy alongside
+task 6 contracts to verify slot/replacement rules early; production parsing and
+aggregation dependencies still apply before wiring collection or publication.
+
 ## Verification strategy
 
 Use pytest deterministic tests for business rules and failure matrices, Ruff lint/format, and wheel builds. Write failing behavior tests before implementation. Use a disposable PostgreSQL database for transactional/concurrency/crash tests, never an implicitly selected production database. Integration tests require explicit `TEST_DATABASE_URL` from process environment; missing values are reported as unverified gates, not successful tests. Network smoke is opt-in; real hosted measurements are release evidence, not unit tests.

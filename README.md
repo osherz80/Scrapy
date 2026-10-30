@@ -104,6 +104,24 @@ Physical-branch eligibility, complete-roster pagination, package reconciliation,
 random sampling, SQL publication and hosted reachability remain separate gates.
 Review [provider evidence](docs/provider-evidence.md) before making coverage claims.
 
+Carrefour and Shufersal recovery is deferred by user decision; see
+[deferred work](tasks/deferred.md). Their public IDs remain in the registry, but
+defaults exclude both and source adapters reject direct access with
+`SOURCE_DEFERRED`, even if an explicit environment list includes their IDs.
+
+The provider contract uses composite `(chain, subchain, store)` identities and
+explicit physical/online/pharmacy/unknown branch classifications. Inventory
+selection consumes the entire listing before returning candidates, chooses only
+latest exact PriceFull files and keeps missing-time branches as failed-attempt
+candidates rather than silently falling back to older files. Unknown branch types
+are not guessed. Publisher-specific metadata mapping is still being implemented.
+
+The sampling policy shuffles once using SystemRandom, then attempts three slots
+with at most two replacements each. Its collection callback must completely
+validate the catalog before returning; lazy, empty and failed results cannot
+contribute observations. This policy is unit-tested but is not yet wired to
+production parsing, aggregation or database publication.
+
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |

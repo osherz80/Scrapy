@@ -4,7 +4,14 @@ import pytest
 
 from ingestor.providers.selected import select_catalogs
 from ingestor.providers.stream import SourceError
-from ingestor.providers.types import Branch, BranchIdentity, BranchKind, FileKind, PublishedFile
+from ingestor.providers.types import (
+    Branch,
+    BranchIdentity,
+    BranchKind,
+    CatalogCandidate,
+    FileKind,
+    PublishedFile,
+)
 
 NOW = datetime(2026, 10, 30, 6, tzinfo=UTC)
 
@@ -77,3 +84,11 @@ def test_signed_source_url_is_not_in_reference_representation():
 def test_naive_listing_timestamp_cannot_cross_provider_boundary():
     with pytest.raises(ValueError, match="timezone-aware"):
         file(branch(), published=datetime(2026, 10, 30, 6))
+
+
+def test_candidate_requires_exactly_one_reference_or_metadata_failure():
+    a = branch()
+    with pytest.raises(ValueError):
+        CatalogCandidate(a, None)
+    with pytest.raises(ValueError):
+        CatalogCandidate(a, file(a), "MISSING_SOURCE_TIME")

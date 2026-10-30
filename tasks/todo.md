@@ -1,6 +1,6 @@
 # Scraper implementation tasks
 
-Status: implementing foundation. Check items only after evidence is recorded. Paths below are relative to this scraper repository. Each task is a separate commit; no remote push or deployment is implied.
+Status: implementing source contracts and collection policy. Check items only after evidence is recorded. Paths below are relative to this scraper repository. Each task is a separate commit; no remote push or deployment is implied.
 
 ## 1. Reproducible Python bootstrap
 Dependencies: none. Scope: medium (up to 5 files).
@@ -45,7 +45,7 @@ Files: `providers/trial.py`, `providers/inspection.py`, focused tests, `docs/pro
 - [x] Trial evaluates timestamp/identity/source package-pair coverage and memory path; explicitly list failed/unverified chains. Unit normalization and physical-branch classification are not claimed.
 - [x] Verification: opt-in bounded local trial evaluated all ten, 8 passed; no raw-file artifacts. Deterministic failure/sanitization tests pass. Hosted coverage remains task 20.
 
-Local recovery evidence: Carrefour's Stores file did not reveal aliases for the three filename/XML-ID mismatches. Fallback Shufersal listing parameters hit the same timeout (60,656 ms); no proxy/cost or weaker validation was introduced. The fallback package was source-audited but has not been installed/trialled as an orchestrator. Task 5's selection/recovery item stays open.
+Local recovery evidence: Carrefour's Stores file did not reveal aliases for the three filename/XML-ID mismatches. Fallback Shufersal listing parameters hit the same timeout (60,656 ms); no proxy/cost or weaker validation was introduced. Recovery/fallback orchestration is deferred by the user's request; the other eight chains proceed with the guarded candidate.
 
 ## 6. Provider adapter contract
 Dependencies: 5. Scope: medium.
@@ -53,6 +53,12 @@ Files: `providers/types.py`, `providers/selected.py`, `tests/unit/test_provider.
 - [ ] Typed composite branch IDs, physical-branch eligibility, pagination and latest exact PriceFull selection have verified mappings.
 - [ ] No hidden retries, arbitrary workflow URLs, online/pharmacy-only branches or unverified support claims.
 - [ ] Verification: pagination/type/identity/eligibility/timestamp fixture cases against selected adapter.
+
+Implemented: provider-independent immutable contracts, explicit branch-kind
+classification, complete-inventory latest PriceFull selection, fail-closed
+pagination and missing-time candidates, plus 11 focused contract tests. Actual
+publisher Stores/filename mapping to these contracts remains open; unknown branch
+types are excluded rather than guessed as physical. No complete adapter claim yet.
 
 ## 7. Bounded in-memory download
 Dependencies: 6. Scope: medium.
@@ -88,9 +94,16 @@ Files: `aggregation.py`, `normalization.py`, `tests/unit/test_aggregation.py`, `
 ## 11. Random branch slots and replacements
 Dependencies: 8, 10. Scope: small.
 Files: `selection.py`, `tests/unit/test_selection.py`.
-- [ ] Shuffle eligible distinct candidates once with secure runtime randomness and injectable seeded RNG for tests.
-- [ ] Three slots, initial plus two replacements each, max nine attempts total; never repeat branch or merge a failed partial parse.
-- [ ] Verification: deterministic failure matrices, exhaustion, 0/1/2/3 successful branches and replacement diagnostics.
+- [x] Shuffle eligible distinct candidates once with SystemRandom by default and injectable seeded RNG for tests.
+- [x] Three slots, initial plus two replacements each, max nine attempts total; duplicate candidates rejected before collection, failed/lazy/empty results never accepted.
+- [x] Verification: 12 deterministic sampling cases cover exhaustion, 0/1/2/3 successes, per-slot and total ceilings, sanitized correlated failures, missing metadata and deferred sources.
+
+Policy was brought forward for independent verification. The collection callback
+must return a fully parsed, validated nonempty catalog; production parser and
+aggregation integration remain tasks 8–10/17. No live random refresh ran here.
+Current verification: full suite 141 passed; Ruff lint/format and sdist/wheel
+build passed on Python 3.12.16. Existing temporary/cache cleanup remains blocked
+by the previously recorded automatic approval review; no deletion bypass was used.
 
 ## Checkpoint: collection semantics
 - [ ] Offline collection fixtures meet spec; full suite/lint/build pass; source coverage claims remain evidence-based.
