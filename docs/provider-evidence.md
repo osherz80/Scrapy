@@ -52,5 +52,12 @@ These mappings are from source inspection, not live reachability evidence.
 
 Decompression tests cover gzip/plain/ZIP exact limits, over-limit failure,
 corrupt/truncated payloads, ambiguous ZIP contents and no disk extraction.
-HTTP, secure parsing, local trials and hosted trials remain separate gates.
+HTTP tests also cover single-attempt failures, response limits, session cookies,
+blocked unapproved hosts/redirects, request budgets, expired deadlines and closing
+an oversized stream without consuming the rest. The client requests identity HTTP
+encoding and rejects other content encodings, so HTTP decompression cannot evade
+the archive cap. Timeouts apply to network operations; a monotonic deadline is
+checked before requests and between body chunks. A separate worker/job timeout
+will enforce the overall production execution budget.
+Secure parsing, local trials and hosted trials remain separate gates.
 Raw portal payloads always remain in transient memory. Logs contain counts only.
