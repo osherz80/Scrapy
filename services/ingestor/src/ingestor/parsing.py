@@ -31,7 +31,7 @@ def _item_time(value: str | None) -> datetime | None:
         return None
     try:
         return source_timestamp(datetime.fromisoformat(value))
-    except (ValueError, SourceError):
+    except (ValueError, OverflowError, SourceError):
         return None
 
 

@@ -145,8 +145,9 @@ def test_duplicate_row_fields_are_invalid_instead_of_last_value_winning():
     assert [row.item_code for row in result.products] == ["001234"]
 
 
-def test_bad_item_date_is_nullable_and_does_not_reset_catalog_freshness():
-    result = parse(xml(item(extra="<PriceUpdateTime>invalid</PriceUpdateTime>")))
+@pytest.mark.parametrize("value", ["invalid", "0001-01-01T00:00:00+03:00"])
+def test_bad_item_date_is_nullable_and_does_not_reset_catalog_freshness(value):
+    result = parse(xml(item(extra=f"<PriceUpdateTime>{value}</PriceUpdateTime>")))
     assert result.products[0].item_price_updated_at is None
     assert result.source_updated_at == datetime(2026, 10, 30, 4, tzinfo=UTC)
 
