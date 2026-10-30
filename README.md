@@ -126,7 +126,11 @@ The production parser and package normalizer are now implemented and tested
 independently; [catalog validation](docs/catalog-validation.md) documents their
 contracts, duplicate handling, source-time rules and local source evidence.
 The live probe remains a basic diagnostic and does not assert full production
-eligibility. Wiring publisher metadata, aggregation and publication is still open.
+eligibility. Decimal reconciliation and the injected collection composition are
+also implemented: complete inventory -> sampling -> parse -> reconcile. Empty or
+fully conflicted results are explicitly nonpublishable. Backend name/token parity
+uses pinned JavaScript-generated fixtures. Publisher roster/eligibility mapping,
+the refresh worker and database publication are still open.
 
 | Process variable | Default / requirement |
 |---|---|

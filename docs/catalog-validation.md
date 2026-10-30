@@ -69,7 +69,7 @@ Source package-pair counts indicate missing positive quantity/unit fields, not
 verified unit recognition. Publisher roster mapping and physical eligibility are
 still open. The parser validation used header subchain/store identity after
 checking listing store equivalence; it does not prove the complete-roster mapping.
-Hosted execution, aggregation, SQL publication and resource capacity remain later
+Hosted execution, SQL publication and resource capacity remain later
 gates. Carrefour and Shufersal were not accessed in this verification.
 
 ## Chain reconciliation
