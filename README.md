@@ -14,6 +14,7 @@ connects to a database or source portal.
 New-Item -ItemType Directory -Force Temp | Out-Null
 $env:TEMP = "$PWD/Temp"
 $env:TMP = "$PWD/Temp"
+$env:PYTHONDONTWRITEBYTECODE = "1"
 $env:UV_CACHE_DIR = "$PWD/Temp/uv-cache"
 $env:UV_PYTHON_INSTALL_DIR = "$PWD/.runtime/python"
 $env:UV_PYTHON_BIN_DIR = "$PWD/.runtime/bin"
@@ -33,3 +34,32 @@ environment directories remain ignored and local. On Linux use `.venv312/bin/pyt
 
 Collection, database migrations, and hosted workflows are subsequent plan tasks.
 Their existence or operational readiness must not be inferred from bootstrap tests.
+
+## Logging boundary
+
+Application modules accept `ingestor.logging.types.Logger`; the CLI composition
+root creates a logger once with `ingestor.logging.create_logger`. Child loggers
+bind `run_id`, `entry_point`, chain/provider/branch IDs as those become available.
+Use stable events and bounded counts/durations, never product rows or raw content.
+
+```python
+from ingestor.logging import create_logger
+
+logger = create_logger(environment="development", version="local")
+run_logger = logger.child(run_id="example", entry_point="probe")
+run_logger.info("run.started", "Starting probe", chain_count=1)
+logger.flush(timeout=1.0)
+```
+
+The factory accepts an injected `Transport` (`write(record)` / `flush()`). Console
+JSON to stderr is the initial provider. A future provider needs an adapter and
+composition-root wiring; ingestion call sites keep the same interface. Filtering,
+context snapshots, serialization limits and redaction happen before delivery.
+URL text is withheld entirely; exceptions expose their type only because messages
+and tracebacks may include credentials or source content. Delivery failures are
+contained; shutdown flush waits at most its configured budget (capped at five
+seconds). A stalled flush runs in a daemon thread and cannot block process exit.
+
+There is no centralized logging storage, dashboard or automatic alert delivery.
+Future Actions logs use repository retention; database run records will supply
+durable operational status when that slice is implemented.

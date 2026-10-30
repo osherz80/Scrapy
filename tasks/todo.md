@@ -20,9 +20,11 @@ Files: `src/ingestor/chains.py`, `tests/unit/test_chains.py` (under `services/in
 ## 3. Replaceable console logger
 Dependencies: 1. Scope: medium (5 files).
 Files: `logging/{__init__,types,transports}.py`, `tests/unit/test_logging.py`, `README.md`.
-- [ ] Typed contract, injected transport/factory, level filtering, bound context, UTC/common fields and JSON console output work.
-- [ ] Redaction includes nested fields, credential URLs, and exceptions; delivery/flush failure cannot change worker state; shutdown is bounded.
-- [ ] Verification: tests cover capture transport, console serialization, redaction, context isolation, filtering, transport failures and bounded flush.
+- [x] Typed contract, injected transport/factory, level filtering, bound context, UTC/common fields and JSON console output work.
+- [x] Redaction includes nested fields, credential URLs, and exceptions; delivery/flush failure cannot change worker state; shutdown is bounded.
+- [x] Verification: 13 logger tests cover capture transport, JSON/UTC schema, redaction, context snapshots, all severity thresholds, bounded recursive context, delivery failure and blocked flush. Full suite: 15 passed; Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
+
+Current boundary: tasks 1–3 are implemented. Configuration/CLI, provider evaluation, SQL and hosted execution remain unchecked; there has been no database connection or source-portal collection. No missing input blocks this completed foundation slice.
 
 ## 4. Validated startup and CLI
 Dependencies: 2, 3. Scope: medium.
