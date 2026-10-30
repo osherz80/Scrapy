@@ -2,14 +2,14 @@
 
 import io
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from xml.etree.ElementTree import ParseError
-from zoneinfo import ZoneInfo
 
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
 
+from ..timestamps import source_timestamp
 from .stream import SourceError
 
 
@@ -34,26 +34,6 @@ class CatalogSummary:
     first_product: ProbeProduct = field(repr=False)
 
 
-def _source_time(value: datetime | None) -> datetime:
-    if value is None:
-        raise SourceError("MISSING_SOURCE_TIME")
-    if value.tzinfo is not None:
-        return value.astimezone(UTC)
-    zone = ZoneInfo("Asia/Jerusalem")
-    candidates = {
-        value.replace(tzinfo=zone, fold=fold).astimezone(UTC)
-        for fold in (0, 1)
-        if value.replace(tzinfo=zone, fold=fold)
-        .astimezone(UTC)
-        .astimezone(zone)
-        .replace(tzinfo=None)
-        == value
-    }
-    if len(candidates) != 1:
-        raise SourceError("AMBIGUOUS_SOURCE_TIME")
-    return candidates.pop()
-
-
 def _positive(value: str | None) -> Decimal | None:
     try:
         result = Decimal(value or "")
@@ -68,7 +48,7 @@ def inspect_catalog(
     published_at: datetime | None,
     expected_chain: str | None = None,
 ) -> CatalogSummary:
-    published = _source_time(published_at)
+    published = source_timestamp(published_at)
     headers: dict[str, str] = {}
     stack: list[str] = []
     first: ProbeProduct | None = None
