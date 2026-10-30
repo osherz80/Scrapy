@@ -109,9 +109,33 @@ notifications. The worker claim must use the same run-row lock. These functions
 do not send HTTP requests, read environment files or expose backend endpoints.
 
 Expired leases currently fail closed rather than being silently stolen. Task 16
-will reconcile abandoned run records before admission/status retry; automated
-expiry recovery and worker ownership are separate slices. Do not treat this
-library alone as an operational refresh service.
+will reconcile abandoned run records before admission/status retry. Do not treat
+this library alone as an operational refresh service.
+
+## Worker ownership library
+
+`repository.ownership.claim_run` locks a PENDING run and its ordered leases, checks
+the complete authorized set and current database time, then records the GitHub
+execution ID (`run_id` or `run_id:attempt`) and a new random fencing token. A
+duplicate/terminal/unknown delivery returns no ownership. A missing/expired lease
+fails without changing the run. Claim resolves manual dispatch uncertainty;
+scheduled runs retain NOT_REQUIRED. Dispatch rejection and claim use the same
+run-row lock, so only one can succeed.
+
+`heartbeat` locks the run before ordered leases and renews every unfinished chain
+atomically, validating token, expiry and deadline. Completed chains are excluded;
+missing/expired/mismatched leases prevent all renewal. Defaults are 300-second
+leases and a 2,700-second job deadline. Tests can shorten these values; extending
+past the spec's five-minute TTL/45-minute maximum is rejected. The deadline also
+caps each renewed lease. Old ownership cannot renew a later run's reservation.
+
+`runs.ownership.LeaseGuard` performs an initial renewal, then runs a dedicated
+heartbeat thread every 30 seconds. Its check fails after renewal errors, local
+monotonic deadline or shutdown. Shutdown waits at most five seconds. The worker
+must provide a separate connection with bounded I/O for renewal, call the guard
+before more work, cancel/close in-flight work at teardown, and still verify the
+token in the publication transaction. Python threads cannot forcibly cancel
+blocked I/O. Publication, recovery and CLI worker wiring remain later tasks.
 
 ## Verification
 

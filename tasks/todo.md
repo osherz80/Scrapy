@@ -1,6 +1,9 @@
 # Scraper implementation tasks
 
-Status: implementing source contracts and collection policy. Check items only after evidence is recorded. Paths below are relative to this scraper repository. Each task is a separate commit; no remote push or deployment is implied.
+Status: implementing database coordination; source roster mapping remains open.
+Check items only after evidence is recorded. Paths below are relative to this
+scraper repository. Each task is a separate commit. The user authorized pushes;
+deployment is not implied.
 
 ## 1. Reproducible Python bootstrap
 Dependencies: none. Scope: medium (up to 5 files).
@@ -155,9 +158,17 @@ Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 ## 14. Ownership and heartbeat
 Dependencies: 13. Scope: medium.
 Files: `runs/ownership.py`, `repository/ownership.py`, `tests/integration/test_ownership.py`.
-- [ ] Atomic PENDING claim once; random fencing token, GitHub execution correlation; duplicate delivery exits before collection.
-- [ ] Heartbeat every 30 seconds, TTL 300 seconds, fail closed on lost ownership; bounded job duration.
-- [ ] Verification: duplicate claim race, expiry/reclaim, failed heartbeat and stale-owner rejection.
+- [x] Atomic PENDING claim once; random fencing token, GitHub execution correlation; duplicate delivery exits before collection.
+- [x] Heartbeat every 30 seconds, TTL 300 seconds, fail closed on lost ownership; bounded job duration.
+- [x] Verification: real PostgreSQL duplicate-claim and claim-versus-rejection races, ingestor-role renewal, missing/expired/wrong-token atomic failure, deadline cap, completed-chain exclusion, uncertainty resolution and old-token rejection after re-admission. Seven guard tests cover initial/background renewal failure, sanitized diagnostics, monotonic deadline, shutdown and no restart.
+
+Ownership and guard libraries are implemented; task 17 must wire their dedicated
+heartbeat connection and cancellation into the worker. Automatic abandoned-run
+reconciliation remains task 16. Publication must independently fence under lock
+(task 15); a successful heartbeat alone never authorizes an unfenced write.
+Verification: the full 323-case suite passed, followed by the additional
+old-owner/re-admission integration case (324 distinct tests total, 61 real
+PostgreSQL cases). Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## 15. Atomic catalog publication
 Dependencies: 10, 14. Scope: medium.
