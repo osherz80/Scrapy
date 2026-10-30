@@ -132,6 +132,27 @@ fully conflicted results are explicitly nonpublishable. Backend name/token parit
 uses pinned JavaScript-generated fixtures. Publisher roster/eligibility mapping,
 the refresh worker and database publication are still open.
 
+## Database schema and migrations
+
+Private schema, least-privilege groups, checksum migration history and explicit
+administration commands are implemented; see [database setup](docs/database.md).
+They have been tested on disposable local PostgreSQL, not applied to Supabase.
+Supply a separate `MIGRATION_DATABASE_URL` through process environment for admin
+commands; the worker's `DATABASE_URL` should use a least-privilege ingestion login.
+No command loads `.env`.
+
+```powershell
+& .venv312/Scripts/python.exe -m ingestor.repository.migrate status
+& .venv312/Scripts/python.exe -m ingestor.repository.migrate apply
+```
+
+Rollback is explicit/destructive and requires the latest version; read the database
+guide before using it. Ordinary pytest defaults to offline unit tests. Running the
+full `services/ingestor/tests` path requires `TEST_DATABASE_URL` for a disposable
+database named `ingestor_test...`; missing configuration fails rather than skips
+integration coverage. Runtime LOGIN provisioning, fencing/admission and publication
+remain separate implementation tasks.
+
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |

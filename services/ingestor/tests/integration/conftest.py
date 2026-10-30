@@ -2,9 +2,12 @@
 
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import psycopg
 import pytest
+from psycopg import sql
+from psycopg.conninfo import conninfo_to_dict
 
 ROOT = Path(__file__).resolve().parents[4]
 
@@ -20,14 +23,37 @@ def db_url():
 
 
 @pytest.fixture
-def db(db_url):
+def unmigrated_db(db_url):
     with psycopg.connect(db_url, connect_timeout=5) as connection:
         if not connection.info.dbname.startswith("ingestor_test"):
             pytest.fail("Integration database name must start with ingestor_test")
         try:
-            connection.execute(
-                (ROOT / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8")
-            )
             yield connection
         finally:
             connection.rollback()
+
+
+@pytest.fixture
+def db(unmigrated_db):
+    unmigrated_db.execute((ROOT / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8"))
+    return unmigrated_db
+
+
+@pytest.fixture
+def migration_db(db_url):
+    parameters = conninfo_to_dict(db_url)
+    if not parameters.get("dbname", "").startswith("ingestor_test"):
+        pytest.fail("Migration tests require a disposable ingestor_test database")
+    parameters["connect_timeout"] = "5"
+    database_name = "ingestor_test_" + uuid4().hex
+    with psycopg.connect(**parameters, autocommit=True) as admin:
+        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database_name)))
+        try:
+            parameters["dbname"] = database_name
+            with psycopg.connect(**parameters, autocommit=True) as connection:
+                yield connection
+        finally:
+            # Only remove the uniquely named database this fixture created.
+            admin.execute(
+                sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(database_name))
+            )

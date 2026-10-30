@@ -44,6 +44,11 @@ aggregation dependencies still apply before wiring collection or publication.
 
 Use pytest deterministic tests for business rules and failure matrices, Ruff lint/format, and wheel builds. Write failing behavior tests before implementation. Use a disposable PostgreSQL database for transactional/concurrency/crash tests, never an implicitly selected production database. Integration tests require explicit `TEST_DATABASE_URL` from process environment; missing values are reported as unverified gates, not successful tests. Network smoke is opt-in; real hosted measurements are release evidence, not unit tests.
 
+Offline default is `python -m pytest` (or the explicit tests/unit path). The full
+tests path below includes integration and requires an explicit administrative
+test URL with database name starting ingestor_test. Migration tests create/drop
+only uniquely named disposable databases on that designated test server.
+
 Verification commands from repository root, using the Python 3.12 virtual environment:
 
 ```powershell

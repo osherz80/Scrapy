@@ -1,3 +1,4 @@
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -158,3 +159,24 @@ def test_package_columns_cannot_mix_unknown_and_known_conversion_pairs(db):
     with pytest.raises(psycopg.errors.CheckViolation):
         with db.transaction():
             db.execute("UPDATE supermarket.products SET source_quantity=60, source_unit_qty='ml'")
+
+
+def test_supabase_style_anonymous_default_grants_are_removed(unmigrated_db):
+    root = Path(__file__).resolve().parents[4]
+    db = unmigrated_db
+    for role in ("anon", "authenticated"):
+        if not db.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (role,)).fetchone():
+            db.execute(sql.SQL("CREATE ROLE {} NOLOGIN").format(sql.Identifier(role)))
+    db.execute(
+        "CREATE SCHEMA supermarket; GRANT USAGE ON SCHEMA supermarket TO anon, authenticated"
+    )
+    db.execute("""ALTER DEFAULT PRIVILEGES IN SCHEMA supermarket
+        GRANT ALL ON TABLES TO anon, authenticated""")
+    db.execute((root / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8"))
+    for role in ("anon", "authenticated"):
+        assert not db.execute(
+            "SELECT has_schema_privilege(%s,'supermarket','USAGE')", (role,)
+        ).fetchone()[0]
+        assert not db.execute(
+            "SELECT has_table_privilege(%s,'supermarket.products','SELECT')", (role,)
+        ).fetchone()[0]
