@@ -124,3 +124,7 @@ The pilot job waits for verification, then runs the same production collection
 path as refresh without receiving database credentials or publishing data. It
 never runs on push or pull requests. Refresh also accepts `mode=pilot` once its
 workflow is registered. See [pilot procedure and evidence](pilot-results.md).
+
+Manual dispatch prerequisite: ci.yml with workflow_dispatch must exist on main
+before GitHub exposes Run workflow. It is currently only on the feature branch.
+Once registered on main, the branch selector can target feature/scraper-foundation.

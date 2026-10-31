@@ -24,7 +24,8 @@ successful catalog when a replacement fails.
 ## Source pilot and hosted launch
 
 Run `python -m ingestor.cli pilot` locally, or manually run Scraper CI on the
-feature branch with source_pilot enabled. See [pilot evidence](pilot-results.md).
+feature branch with source_pilot enabled after ci.yml with workflow_dispatch
+exists on main. GitHub does not expose the manual button before that. See [pilot evidence](pilot-results.md).
 Pilot success proves source collection, parsing and aggregation, not publication.
 
 After source evidence and credential review, the refresh workflow must be

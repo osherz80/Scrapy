@@ -17,7 +17,8 @@ Local execution from the repository root:
 & .venv312/Scripts/python.exe -m ingestor.cli pilot
 ```
 
-Hosted execution: manually dispatch Scraper CI on the feature branch with
+Hosted execution requires ci.yml with workflow_dispatch to exist on the default
+branch first. Then manually dispatch Scraper CI on the feature branch with
 `source_pilot=true`. The source job runs only after verification succeeds and
 receives no database secrets. Push/PR verification never accesses retailer sources.
 Refresh workflow also supports `mode=pilot` once registered on the default branch.
@@ -45,4 +46,5 @@ database capacity measurement.
   least-privilege worker LOGIN remains required for launch.
 - Hosted source pilot and production publication/capacity evidence remain pending.
   CLI dispatch was rejected with HTTP 401; operator can manually run Scraper CI
-  on feature/scraper-foundation with source_pilot enabled. No merge is needed.
+  on feature/scraper-foundation with source_pilot enabled after ci.yml is
+  registered on main. The missing default-branch workflow currently blocks the UI.
