@@ -42,6 +42,12 @@ aggregation dependencies still apply before wiring collection or publication.
 
 ## Verification strategy
 
+Scheduling refinement (2026-10-31): official GitHub documentation now verifies
+native `timezone: Asia/Jerusalem` cron support. Use one 06:00 trigger with the
+application hour gate and unique local-date claim, rather than two UTC candidates.
+Daily admission targets the eight active chains while the two sources remain
+explicitly deferred. Late/missed starts are reported; exact delivery is not promised.
+
 Use pytest deterministic tests for business rules and failure matrices, Ruff lint/format, and wheel builds. Write failing behavior tests before implementation. Use a disposable PostgreSQL database for transactional/concurrency/crash tests, never an implicitly selected production database. Integration tests require explicit `TEST_DATABASE_URL` from process environment; missing values are reported as unverified gates, not successful tests. Network smoke is opt-in; real hosted measurements are release evidence, not unit tests.
 
 Offline default is `python -m pytest` (or the explicit tests/unit path). The full

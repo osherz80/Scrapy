@@ -37,49 +37,54 @@ def admit_run(
     """
     chains = validate_request(chains, origin)
     _require_idle(connection)
-    run_id, pending_token = uuid4(), uuid4()
     with connection.transaction():
-        _timeouts(connection)
-        for chain in chains:
-            # Exact stable registry index avoids hash collisions and needs no
-            # UPDATE permission on chains for the control role. Reserve this
-            # advisory-lock namespace for admission; never hold session locks.
-            connection.execute(
-                "SELECT pg_advisory_xact_lock(1397900113, %s)",
-                (_CHAIN_IDS.index(chain),),
-            )
-        enabled = connection.execute(
-            "SELECT id FROM supermarket.chains WHERE id=ANY(%s) AND enabled ORDER BY id",
-            (list(chains),),
-        ).fetchall()
-        if tuple(row[0] for row in enabled) != chains:
-            raise AdmissionError("CHAIN_DISABLED")
-        reconcile_for_admission(connection, chains)
-        now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
+        return _admit_in_transaction(connection, chains, origin)
+
+
+def _admit_in_transaction(connection, chains, origin):
+    """Compose admission with a caller-owned transaction and validated inputs."""
+    run_id, pending_token = uuid4(), uuid4()
+    _timeouts(connection)
+    for chain in chains:
+        # Exact stable registry index avoids hash collisions and needs no
+        # UPDATE permission on chains for the control role. Reserve this
+        # advisory-lock namespace for admission; never hold session locks.
         connection.execute(
-            "INSERT INTO supermarket.refresh_runs"
-            "(id,origin,requested_chains,created_at,dispatch_state) VALUES (%s,%s,%s,%s,%s)",
-            (
-                run_id,
-                origin,
-                list(chains),
-                now,
-                "PENDING" if origin == "MANUAL" else "NOT_REQUIRED",
-            ),
+            "SELECT pg_advisory_xact_lock(1397900113, %s)",
+            (_CHAIN_IDS.index(chain),),
         )
-        for chain in chains:
-            connection.execute(
-                "INSERT INTO supermarket.refresh_run_chains(run_id,chain_id) VALUES (%s,%s)",
-                (run_id, chain),
-            )
-            reserved = connection.execute(
-                "INSERT INTO supermarket.chain_leases"
-                "(chain_id,run_id,owner_token,heartbeat_at,expires_at) VALUES (%s,%s,%s,%s,%s) "
-                "ON CONFLICT (chain_id) DO NOTHING RETURNING chain_id",
-                (chain, run_id, pending_token, now, now + timedelta(minutes=30)),
-            ).fetchone()
-            if reserved is None:
-                raise AdmissionError("CHAIN_RESERVED")
+    enabled = connection.execute(
+        "SELECT id FROM supermarket.chains WHERE id=ANY(%s) AND enabled ORDER BY id",
+        (list(chains),),
+    ).fetchall()
+    if tuple(row[0] for row in enabled) != chains:
+        raise AdmissionError("CHAIN_DISABLED")
+    reconcile_for_admission(connection, chains)
+    now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
+    connection.execute(
+        "INSERT INTO supermarket.refresh_runs"
+        "(id,origin,requested_chains,created_at,dispatch_state) VALUES (%s,%s,%s,%s,%s)",
+        (
+            run_id,
+            origin,
+            list(chains),
+            now,
+            "PENDING" if origin == "MANUAL" else "NOT_REQUIRED",
+        ),
+    )
+    for chain in chains:
+        connection.execute(
+            "INSERT INTO supermarket.refresh_run_chains(run_id,chain_id) VALUES (%s,%s)",
+            (run_id, chain),
+        )
+        reserved = connection.execute(
+            "INSERT INTO supermarket.chain_leases"
+            "(chain_id,run_id,owner_token,heartbeat_at,expires_at) VALUES (%s,%s,%s,%s,%s) "
+            "ON CONFLICT (chain_id) DO NOTHING RETURNING chain_id",
+            (chain, run_id, pending_token, now, now + timedelta(minutes=30)),
+        ).fetchone()
+        if reserved is None:
+            raise AdmissionError("CHAIN_RESERVED")
     return AdmittedRun(run_id, chains)
 
 

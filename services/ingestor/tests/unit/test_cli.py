@@ -90,3 +90,27 @@ def test_probe_dispatches_validated_bounds_without_database(monkeypatch):
     monkeypatch.setattr(trial, "run_probe", probe)
     assert main(["probe", "--chains", "rami-levy", "--max-branches", "1"], env={}) == 1
     assert calls == [(("rami-levy",), 1)]
+
+
+def test_scheduled_dispatches_with_execution_context_and_shared_factories(monkeypatch):
+    from ingestor import cli
+
+    calls = []
+
+    def scheduled(**kwargs):
+        calls.append(kwargs["execution_id"])
+        return 1
+
+    monkeypatch.setattr(cli, "run_scheduled", scheduled)
+    assert (
+        main(
+            ["scheduled"],
+            env={
+                "DATABASE_URL": "postgresql://worker:synthetic-secret@db.test/db",
+                "GITHUB_RUN_ID": "12345",
+            },
+            connection_factory=lambda: None,
+        )
+        == 1
+    )
+    assert calls == ["12345:1"]

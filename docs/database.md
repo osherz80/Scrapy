@@ -211,7 +211,10 @@ Real PostgreSQL tests cover pending/running expiry, partial publication recovery
 status/admission reconciliation, job deadlines, missing ownership, concurrent
 re-admission, recovery rollback with admission conflict, teardown ownership,
 current/active reference retention and the 100-record bound. These are repository
-functions; status endpoints and periodic scheduling still need external wiring.
+functions; status endpoints still need external wiring. Scheduled admission now
+claims the local date and all active-chain leases in one transaction before
+executing the worker. Conflicts create a failed scheduled run with no partial
+reservations; duplicates return the existing daily claim without re-collection.
 The worker runs one bounded retention pass after finalization; maintenance failure
 is logged without undoing the run. Supabase has not been accessed.
 

@@ -14,6 +14,7 @@ from .logging import create_logger
 from .logging.types import Transport
 from .providers.published import PublishedProvider
 from .repository.connection import DatabaseConnectionError, make_connection_factory
+from .runs.schedule import run_scheduled
 from .runs.worker import ConnectionFactory, ProviderFactory, run_worker
 
 
@@ -50,7 +51,7 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("--require-database", action="store_true")
     refresh = commands.add_parser("refresh", help="Refresh an authorized database run")
     refresh.add_argument("--run-id", required=True, type=UUID)
-    scheduled = commands.add_parser("scheduled", help="Reserved: run Israel daily scheduling")
+    scheduled = commands.add_parser("scheduled", help="Claim and execute the Israel daily refresh")
     scheduled.add_argument("--timezone", choices=["Asia/Jerusalem"], default="Asia/Jerusalem")
     probe = commands.add_parser("probe", help="Run a bounded provider feasibility probe")
     probe.add_argument("--chains", type=_chains)
@@ -102,7 +103,7 @@ def main(
             from .providers.trial import run_probe
 
             return run_probe(chains, settings, logger, max_branches=args.max_branches)
-        if args.command == "refresh":
+        if args.command in ("refresh", "scheduled"):
             process = os.environ if env is None else env
             execution_id = process.get("GITHUB_RUN_ID", "")
             attempt = process.get("GITHUB_RUN_ATTEMPT", "1")
@@ -129,8 +130,7 @@ def main(
             if current_thread() is main_thread():
                 previous = signal.signal(signal.SIGTERM, lambda *_: cancelled.set())
             try:
-                return run_worker(
-                    args.run_id,
+                parameters = dict(
                     execution_id=f"{execution_id}:{attempt}",
                     settings=settings,
                     connection_factory=connect,
@@ -140,13 +140,18 @@ def main(
                     logger=logger,
                     cancelled=cancelled,
                 )
+                return (
+                    run_worker(args.run_id, **parameters)
+                    if args.command == "refresh"
+                    else run_scheduled(**parameters)
+                )
             finally:
                 if previous is not None:
                     signal.signal(signal.SIGTERM, previous)
         logger.error(
             "command.unavailable",
             "Collection command is not enabled yet",
-            error_code="SCHEDULER_UNAVAILABLE",
+            error_code="UNSUPPORTED_COMMAND",
         )
         return 3
     finally:

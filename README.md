@@ -76,7 +76,9 @@ wired to live adapters and direct DATABASE_URL sessions. It consumes an existing
 PENDING run admitted by the control library; it never creates authorization from
 a newly invented UUID or takes a chain/URL override. GITHUB_RUN_ID is required,
 with GITHUB_RUN_ATTEMPT defaulting to 1. Actions supplies these in hosted execution.
-`scheduled` remains unavailable until its scheduling slice is complete. Refresh
+`scheduled` checks the Israel-local 06:00 hour, claims the local date once, reserves
+the active chain set atomically, then runs the worker. Delayed starts within that
+hour are logged; later starts fail without admission. Refresh
 is an explicit network/database mutation command; check-config remains
 connection-free. A real Supabase refresh has not been run during implementation.
 

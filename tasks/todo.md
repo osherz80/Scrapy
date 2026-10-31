@@ -230,9 +230,17 @@ including 111 real PostgreSQL cases; Ruff lint/format and sdist/wheel build pass
 
 Dependencies: 13, 17. Scope: medium.
 Files: `runs/schedule.py`, `repository/schedule.py`, `tests/unit/test_schedule.py`, `tests/integration/test_schedule_claim.py`.
-- [ ] 03:00/04:00 UTC candidates use Asia/Jerusalem 06:00 gate and atomic local-date claim, reserve all ten or report conflict.
-- [ ] Duplicate/delayed/missed invocations are honest operational outcomes, not guaranteed delivery.
-- [ ] Verification: winter/summer/DST transitions, concurrent daily claims and conflicting leases.
+- [x] Verified native Asia/Jerusalem 06:00 cron replaces the two-UTC-candidate fallback; application gate and atomic local-date claim reserve all eight active chains or record conflict. Deferred chains remain excluded.
+- [x] Duplicate/delayed/missed invocations are explicit operational outcomes. 06:00–06:59 starts may run with delay reported; later starts fail without admission. A conflicted daily claim is retained; recovery uses manual admission/run-ID dispatch.
+- [x] Verification: 14 schedule unit cases, CLI wiring, and five PostgreSQL integration cases cover winter/summer/DST transitions, midnight date conversion, no-I/O skips, concurrent claims, shared admission locks, failure rollback, durable conflicts and scheduled fixture-worker composition.
+
+Schedule admission, the date claim, and all reservations commit together. Ordinary
+manual admission retains its original transaction contract; an internal helper
+allows scheduled composition without nested independent commits. Native timezone
+support is verified in GitHub's official workflow syntax documentation. Workflow
+configuration and actual hosted CI execution follow in task 19.
+Verification: 454 tests passed, including 116 real PostgreSQL cases; Ruff
+lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## 19. CI and refresh workflows
 Dependencies: 17, 18. Scope: medium.
