@@ -1,6 +1,6 @@
 # Scraper implementation tasks
 
-Status: default worker/source/database composition implemented; next scheduling and workflows.
+Status: scheduling/workflows implemented; hosted CI verified; production pilot remains open.
 Check items only after evidence is recorded. Paths below are relative to this
 scraper repository. Each task is a separate commit. The user authorized pushes;
 deployment is not implied.
@@ -247,21 +247,22 @@ Dependencies: 17, 18. Scope: medium.
 Files: `.github/workflows/{ci,refresh}.yml`, `docs/github-actions.md`.
 - [x] Pinned runtime/dependency lock, contents-read permission, 45-minute refresh job, manual runId handoff and native 06:00 Asia/Jerusalem cron; no global cancellation.
 - [x] Opt-in probe mode without DB secret, DATABASE_URL injected only into the refresh step, no raw artifacts; CI uses a loopback disposable PostgreSQL container with project-local data and no production credentials.
-- [ ] Verification: workflow syntax/security inspection and actual CI run when repository access is available.
+- [x] Verification: actionlint 1.7.12 and security inspection passed; hosted CI for commit a8d0b12 passed all checks, 454 tests (116 real PostgreSQL cases), distribution builds and container cleanup. [GitHub run](https://github.com/osherz80/Scrapy/actions/runs/41227246927).
 
 Actionlint 1.7.12 validates both workflows locally. Checkout is pinned to its
 verified full v6 commit; uv/actionlint archives and PostgreSQL 18.3 image are
 checksum/digest pinned. Runtime/caches stay in workspace directories; managed
 Python installation disables shims/registration. All 454 application tests pass
-locally. Hosted push-triggered CI verification is pending the workflow push.
+locally and on the GitHub-hosted Ubuntu runner. The hosted suite completed in
+11.65 seconds with Python 3.12.16; no production URL was injected or accessed.
 
 ## Checkpoint: operational wiring
-- [ ] Offline/DB gates pass and workflows validated; hosted source reachability is still separate.
+- [x] Offline/DB gates pass locally and on GitHub, workflows validate and hosted CI succeeds. Hosted retailer reachability, Supabase migration/connectivity and production capacity remain separate gates.
 
 ## 20. Controlled hosted pilot
 Dependencies: 19. Scope: small.
 Files: `docs/provider-evidence.md`, `docs/pilot-results.md`.
-- [ ] Evaluate all ten from actual GitHub runner; normalized products demonstrated for reachable chains; inaccessible ones have explicit sanitized failure evidence.
+- [ ] Evaluate the eight active chains from the actual GitHub runner; normalized products demonstrated for reachable chains; failures have sanitized evidence. Carrefour/Shufersal stay deferred and are not accessed.
 - [ ] Record exact dependencies, RAM/runtime, schema/unit/timestamp findings and direct database connectivity with verified TLS.
 - [ ] Verification: controlled probe, then bounded refresh against explicitly designated environment; no raw catalogs in artifacts/logs.
 

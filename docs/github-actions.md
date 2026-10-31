@@ -98,3 +98,12 @@ authorized manual run when its old reservations have been reconciled.
 Official references: [schedule/timezone syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule),
 [trigger behavior and delays](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
 [GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners).
+
+## Hosted verification
+
+[CI run 41227246927](https://github.com/osherz80/Scrapy/actions/runs/41227246927),
+commit `a8d0b12`, passed on 2026-10-31. All job steps succeeded: tool/runtime setup,
+workflow/Python quality checks, isolated PostgreSQL startup, 454 tests, package
+build and container cleanup. The Linux suite used Python 3.12.16 and completed in
+11.65 seconds. This verifies CI infrastructure and fixture-backed behavior; it
+does not demonstrate retailer reachability from that runner or a Supabase refresh.
