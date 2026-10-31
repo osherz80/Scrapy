@@ -298,3 +298,9 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 - [x] Add source-only production path with existing sampling, parser, aggregation and limits; static per-chain outcomes and Linux RSS/runtime metrics. No database connection or persistence.
 - [x] Four focused cases cover CLI wiring/no DB access, cleanup/failure continuation, deadline and deferred-source rejection. All 357 local unit tests, Ruff, actionlint and build pass.
 - [x] Add opt-in manual CI pilot after verification so feature-branch source evidence can be collected without merging/deploying refresh. Hosted results pending.
+
+## Operator documentation and hosted verification
+- [x] Add configuration and operations guides covering bootstrap, CA secrets, roles, migrations, pilots, admission API/manual dispatch, durable status SQL, expiry/recovery, retention and replaceable console logging. Dedicated admission/dispatch CLI still absent.
+- [x] Hosted CI on cdaa7ea passed 474 tests (357 unit + 117 PostgreSQL) in 12.78 seconds, quality gates, builds and cleanup: https://github.com/osherz80/Scrapy/actions/runs/41243414714.
+- [x] Read-only Supabase baseline recorded in pilot results; worker credential is still elevated.
+- [ ] Manual hosted source pilot: operator instructed how to dispatch; local CLI dispatch rejected with HTTP 401. No production refresh started.

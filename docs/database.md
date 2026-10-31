@@ -1,4 +1,4 @@
-# Private ingestion database
+# Ingestion database
 
 The versioned scripts live under `db/migrations/` with paired destructive rollback
 scripts under `db/rollback/`. Run administration commands from a repository
@@ -35,10 +35,11 @@ administration permissions. A separate MIGRATION_DATABASE_URL is optional if
 credentials are split later. For production operation, the daily worker should
 use an ingestion-only login rather than administrator permissions.
 
-PUBLIC schema/table/function access is revoked. Existing `anon`/`authenticated`
+PUBLIC access to scraper tables/functions is revoked; public schema usage is
+retained. Existing `anon`/`authenticated`
 grants are explicitly revoked when those Supabase roles exist. Do not expose this
-schema through the browser Data API. RLS is not used as a substitute for private
-schema and role privileges. Administrative/service secrets remain server-side.
+tables through the browser Data API. RLS is not used as a substitute for
+table and role privileges. Administrative/service secrets remain server-side.
 
 Current publication references protect their run records from deletion. Retention
 must preserve active leases/current catalogs and prune only unreferenced old runs.

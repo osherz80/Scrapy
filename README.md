@@ -218,3 +218,9 @@ The production schema must be explicitly migrated before the first refresh.
 Schedules activate from the default branch after review/merge; pushing a feature
 branch runs CI without activating that branch's cron. Workflows never apply
 production migrations automatically. Supabase schema changes are applied only by explicit operator authorization.
+
+## Operations
+
+See [configuration](docs/configuration.md), [operator runbook](docs/operations.md)
+and [pilot evidence](docs/pilot-results.md) for environment setup, execution,
+recovery and remaining launch gates.

@@ -35,4 +35,14 @@ database capacity measurement.
   data on 001→002 upgrade, permission boundaries, concurrency and rollback.
 - Supabase migrations 001/002 applied and verified using the supplied CA and
   direct DATABASE_URL. No products have been published by the pilot.
-- Hosted pilot results and production publication/capacity evidence remain pending.
+- [Hosted CI run 41243414714](https://github.com/osherz80/Scrapy/actions/runs/41243414714)
+  passed on cdaa7ea: 474 tests in 12.78 seconds, Ruff/actionlint, distribution
+  builds and disposable PostgreSQL cleanup. The source-pilot job was skipped as
+  intended on push; manual source execution remains pending.
+- Read-only Supabase baseline (2026-10-31): database 11,245,235 bytes; seven
+  scraper tables/indexes 180,224 bytes; products 0; runs 0. This is an empty-schema
+  baseline, not a populated capacity estimate. Current connection can create roles;
+  least-privilege worker LOGIN remains required for launch.
+- Hosted source pilot and production publication/capacity evidence remain pending.
+  CLI dispatch was rejected with HTTP 401; operator can manually run Scraper CI
+  on feature/scraper-foundation with source_pilot enabled. No merge is needed.
