@@ -135,7 +135,45 @@ monotonic deadline or shutdown. Shutdown waits at most five seconds. The worker
 must provide a separate connection with bounded I/O for renewal, call the guard
 before more work, cancel/close in-flight work at teardown, and still verify the
 token in the publication transaction. Python threads cannot forcibly cancel
-blocked I/O. Publication, recovery and CLI worker wiring remain later tasks.
+blocked I/O. Recovery and CLI worker wiring remain later tasks.
+
+## Atomic chain publication
+
+`repository.publication.publish_collection` consumes one immutable
+`ChainCollection` and its `RunOwnership`, using a dedicated idle autocommit
+connection. It validates distinct attempts/successes, counters, exact chain
+identity, aware source dates and already-rounded Decimal prices. It stages only
+that chain's parameter rows in memory; no raw files, database staging tables or
+additional TEMP/schema privileges are needed.
+
+The transaction locks the run, run-chain outcome and chain lease, verifies the
+fencing token/run/expiry/deadline, deletes the prior chain catalog, inserts all
+replacement rows, and updates chain metadata and the successful outcome. Exact
+string codes and true oldest/newest source dates are preserved. Absent products
+are removed. A stale source date remains stale; ingestion time is separate.
+After writes, the transaction checks current database time against the locked
+lease again, then releases that chain's reservation. Expiry during a long insert
+batch causes full rollback. Other chains are not replaced or released.
+
+Zero successful branches or no surviving products records a failed chain with
+NO_SUCCESSFUL_BRANCHES/NO_PUBLISHABLE_PRODUCTS and releases its reservation while
+preserving existing products and chain publication metadata. Operational branch
+metadata contains only bounded subchain/store IDs and success flags, including
+failed attempts; no observed prices or raw payloads are retained.
+
+Any SQL/constraint/ownership failure rolls back products, metadata, outcome and
+lease changes. Repeating an already committed chain is rejected, protecting a
+successful publication after an uncertain caller response. Per-chain success or
+failure does not finalize the whole run; task 16 supplies finalization/recovery.
+Durations, product counts and source age are logged through the existing facade;
+driver error messages and product values are not logged.
+
+Real PostgreSQL tests inject failures after deletion and during metadata update,
+expire a lease inside insertion, and prove stale-owner rejection after a later
+admission. A paused writer demonstrates complete old-catalog visibility until
+commit, then complete new data/metadata; a REPEATABLE READ reader keeps its old
+snapshot across that commit. This verifies repository transactions, not an API
+search implementation or a live Supabase refresh.
 
 ## Verification
 

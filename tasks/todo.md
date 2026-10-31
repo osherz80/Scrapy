@@ -173,9 +173,17 @@ PostgreSQL cases). Ruff lint/format and sdist/wheel build passed on Python 3.12.
 ## 15. Atomic catalog publication
 Dependencies: 10, 14. Scope: medium.
 Files: `repository/publication.py`, `tests/integration/test_publication.py`, `tests/integration/test_visibility.py`.
-- [ ] Under locked valid fencing token, stage normalized rows and replace chain catalog/status in one transaction; no absent stale products remain after success.
-- [ ] Zero successful branches preserve old data; failures roll back; stale source watermark reported honestly.
-- [ ] Verification: 1-branch publication, zero preservation, crash injection, expired owner, concurrent reader snapshot and absent-product deletion.
+- [x] Under locked valid fencing token, stage normalized rows and replace chain catalog/status in one transaction; no absent stale products remain after success.
+- [x] Zero successful branches preserve old data; failures roll back; stale source watermark reported honestly.
+- [x] Verification: 22 real PostgreSQL cases cover 1/3-branch publication, zero/all-rejected preservation, absent-product deletion and other-chain isolation, bounded attempt metadata, invalid inputs, duplicate publication, expired/wrong/newer owner, job deadline, failure after deletion/metadata update, expiry during insertion, redacted diagnostics and reader snapshot visibility.
+
+Stages normalized parameter rows in memory for one chain; no staging tables,
+extra database permissions or raw artifacts. Rechecks expiry after writes before
+releasing the reservation. Per-chain outcomes commit atomically with the catalog;
+whole-run finalization and abandoned-run recovery remain task 16. Supabase and
+the CLI worker have not been invoked.
+Verification: 346 tests passed, including 83 real PostgreSQL cases; Ruff
+lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## 16. Recovery and retention
 Dependencies: 15. Scope: medium.
