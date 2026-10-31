@@ -34,7 +34,7 @@ def claim_daily_run(
         _timeouts(connection)
         connection.execute("SELECT pg_advisory_xact_lock(1397900115,%s)", (local_date.toordinal(),))
         existing = connection.execute(
-            "SELECT run_id FROM supermarket.schedule_claims WHERE local_date=%s", (local_date,)
+            "SELECT run_id FROM public.schedule_claims WHERE local_date=%s", (local_date,)
         ).fetchone()
         if existing:
             return DailyAdmission(existing[0], "ALREADY_CLAIMED")
@@ -48,25 +48,25 @@ def claim_daily_run(
             run_id, outcome = uuid4(), "SCHEDULE_CONFLICT"
             now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
             connection.execute(
-                "INSERT INTO supermarket.refresh_runs(id,origin,status,requested_chains,created_at,"
+                "INSERT INTO public.refresh_runs(id,origin,status,requested_chains,created_at,"
                 "finished_at,dispatch_state,error_code) VALUES (%s,'SCHEDULED','FAILED',%s,%s,%s,"
                 "'NOT_REQUIRED','SCHEDULE_CONFLICT')",
                 (run_id, list(chains), now, now),
             )
             with connection.cursor() as cursor:
                 cursor.executemany(
-                    "INSERT INTO supermarket.refresh_run_chains"
+                    "INSERT INTO public.refresh_run_chains"
                     "(run_id,chain_id,status,finished_at,error_code) "
                     "VALUES (%s,%s,'FAILED',%s,'SCHEDULE_CONFLICT')",
                     ((run_id, chain, now) for chain in chains),
                 )
         if execution_id is not None:
             connection.execute(
-                "UPDATE supermarket.refresh_runs SET github_run_id=%s WHERE id=%s",
+                "UPDATE public.refresh_runs SET github_run_id=%s WHERE id=%s",
                 (execution_id, run_id),
             )
         connection.execute(
-            "INSERT INTO supermarket.schedule_claims(local_date,run_id) VALUES (%s,%s)",
+            "INSERT INTO public.schedule_claims(local_date,run_id) VALUES (%s,%s)",
             (local_date, run_id),
         )
     return DailyAdmission(run_id, outcome)

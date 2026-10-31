@@ -216,6 +216,9 @@ tempCodeRunnerFile.py
 /.venv312/
 /Temp/
 .env.*
+/certs/*.crt
+/certs/*.cer
+/certs/*.pem
 
 # Marimo
 marimo/_static/

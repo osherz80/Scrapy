@@ -1,8 +1,7 @@
-"""Explicit transactional migration administration; never loads environment files."""
+"""Explicit transactional migration administration with safe environment bootstrap."""
 
 import argparse
 import hashlib
-import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -10,8 +9,9 @@ from pathlib import Path
 
 import psycopg
 
+from ..environment import EnvironmentFileError, load_environment
 from ..logging import create_logger
-from .connection import DatabaseConnectionError, connection_options
+from .connection import DatabaseConnectionError, connection_failure_diagnostic, connection_options
 
 _MIGRATION_NAME = re.compile(r"^(\d{3,})_[a-z0-9_]+\.sql$")
 
@@ -80,14 +80,26 @@ def _lock(connection: psycopg.Connection) -> None:
     connection.execute("SELECT pg_advisory_xact_lock(1397900112, 1)")
 
 
+def _ledger(connection: psycopg.Connection) -> str | None:
+    public, legacy = connection.execute(
+        "SELECT to_regclass('public.schema_migrations'), "
+        "to_regclass('supermarket.schema_migrations')"
+    ).fetchone()
+    if public and legacy:
+        raise MigrationError("MIGRATION_HISTORY_DIVERGED")
+    return (
+        "public.schema_migrations"
+        if public
+        else ("supermarket.schema_migrations" if legacy else None)
+    )
+
+
 def _history(connection: psycopg.Connection, migrations: tuple[Migration, ...]) -> tuple[str, ...]:
-    if (
-        connection.execute("SELECT to_regclass('supermarket.schema_migrations')").fetchone()[0]
-        is None
-    ):
+    ledger = _ledger(connection)
+    if ledger is None:
         return ()
     rows = connection.execute(
-        "SELECT version,name,checksum,rollback_checksum FROM supermarket.schema_migrations"
+        f"SELECT version,name,checksum,rollback_checksum FROM {ledger}"
     ).fetchall()
     expected = {migration.version: migration for migration in migrations}
     if any(row[0] not in expected for row in rows):
@@ -127,7 +139,8 @@ def apply_migrations(
     _check_connection(connection)
     with connection.transaction():
         _lock(connection)
-        connection.execute("""CREATE SCHEMA IF NOT EXISTS supermarket;
+        if _ledger(connection) is None:
+            connection.execute("""CREATE SCHEMA IF NOT EXISTS supermarket;
             REVOKE ALL ON SCHEMA supermarket FROM PUBLIC;
             CREATE TABLE IF NOT EXISTS supermarket.schema_migrations(
                 version text PRIMARY KEY, name text NOT NULL, checksum text NOT NULL,
@@ -138,7 +151,7 @@ def apply_migrations(
         for migration in pending:
             connection.execute(migration.forward, prepare=False)
             connection.execute(
-                """INSERT INTO supermarket.schema_migrations(
+                f"""INSERT INTO {_ledger(connection)}(
                 version,name,checksum,rollback_checksum) VALUES (%s,%s,%s,%s)""",
                 (
                     migration.version,
@@ -164,7 +177,7 @@ def rollback_migration(
             raise MigrationError("ROLLBACK_MUST_TARGET_LATEST")
         migration = next(migration for migration in migrations if migration.version == version)
         connection.execute(migration.rollback, prepare=False)
-        connection.execute("DELETE FROM supermarket.schema_migrations WHERE version=%s", (version,))
+        connection.execute(f"DELETE FROM {_ledger(connection)} WHERE version=%s", (version,))
 
 
 def _connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str, object]:
@@ -186,12 +199,13 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
     parser.add_argument("operation", choices=("status", "apply", "rollback"))
     parser.add_argument("--version", help="Required latest version for destructive rollback")
     args = parser.parse_args(argv)
-    env = os.environ if env is None else env
-    logger = create_logger(
-        environment=env.get("LOG_ENV", "administration"),
-        version=env.get("APP_VERSION") or env.get("GITHUB_SHA") or "unknown",
-    )
+    logger = create_logger()
     try:
+        env = load_environment(env)
+        logger = create_logger(
+            environment=env.get("LOG_ENV", "administration"),
+            version=env.get("APP_VERSION") or env.get("GITHUB_SHA") or "unknown",
+        )
         url = env.get("MIGRATION_DATABASE_URL") or env.get("DATABASE_URL")
         if not url:
             raise MigrationError("DATABASE_URL_REQUIRED")
@@ -219,12 +233,15 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         )
         return 0
     except Exception as error:
-        code = str(error) if isinstance(error, MigrationError) else "MIGRATION_FAILED"
+        code, message = connection_failure_diagnostic(error)
+        code = str(error) if isinstance(error, (MigrationError, EnvironmentFileError)) else code
+        if code == "DATABASE_CA_FILE_INVALID":
+            message = (
+                "Set DATABASE_SSLROOTCERT to an existing CA certificate file inside the project."
+            )
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", code):
             code = "MIGRATION_FAILED"
-        logger.error(
-            "migration.failed", "Database administration failed", error_code=code, error=error
-        )
+        logger.error("migration.failed", message, error_code=code, error=error)
         return 2
     finally:
         logger.flush()

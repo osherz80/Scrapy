@@ -271,7 +271,7 @@ Dependencies: 20. Scope: medium.
 Files: `README.md`, `docs/operations.md`, `docs/configuration.md`.
 - [ ] Document setup, migrations/rollback, process env/secrets, dispatch/recovery, console logs and durable run status queries.
 - [ ] Explain no centralized retention/alerts yet, transport replacement contract and unavailable-chain treatment.
-- [ ] Verification: execute documented help/status/recovery procedure in designated environment; record missing inputs without inspecting `.env`.
+- [ ] Verification: execute documented help/status/recovery procedure in designated environment; bootstrap may load root `.env` per user authorization, without displaying secrets.
 
 ## 22. Capacity and launch evidence
 Dependencies: 21. Scope: small.
@@ -283,3 +283,13 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 ## Checkpoint: release review
 - [ ] All scraper acceptance criteria have evidence, zero secret/raw-file leakage, temporary task files cleaned, commits reviewable.
 - [ ] Human reviews before production merge/deploy; no claim of API implementation or untested production readiness.
+
+## Local environment bootstrap and migration diagnosis (2026-10-31)
+- [x] User-authorized root `.env` bootstrap for CLI/migrations; process variables win, injected mappings bypass file access, malformed files fail without logging contents.
+- [x] Reproduced local database status failure: TLS certificate verification fails with system roots and the bundled public CA store; no migration SQL executed.
+- [x] Add project-local `DATABASE_SSLROOTCERT` support for workers/migrations while retaining `verify-full`; static TLS/authentication/DNS/timeout diagnostics keep driver text redacted.
+- [x] Operator applied 001; agent applied user-authorized 002 using the supplied CA. Verified versions 001/002, seven public tables and absence of supermarket schema.
+
+## Public schema correction (2026-10-31)
+- [x] Preserve migration 001 checksums; migration 002 moves tables/function/history into public, removes legacy schema and retains data/ACLs. All runtime SQL updated.
+- [x] Verification: 469 tests passed in full run; corrected schema fixture then 23 schema tests passed; 10 migration tests passed including upgrade preservation, rollback and idempotency. Ruff/build verified. Supabase migration 002 applied and checked directly.

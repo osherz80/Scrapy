@@ -60,7 +60,51 @@ def connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str
     }
     if not local_test:
         options["sslrootcert"] = "system"
+        if certificate := env.get("DATABASE_SSLROOTCERT"):
+            try:
+                root = root.resolve()
+                path = (root / certificate).resolve()
+                if not path.is_relative_to(root) or not path.is_file():
+                    raise ValueError
+            except (OSError, ValueError):
+                raise DatabaseConnectionError("DATABASE_CA_FILE_INVALID") from None
+            options["sslrootcert"] = str(path)
     return options
+
+
+def connection_failure_diagnostic(error: Exception) -> tuple[str, str]:
+    """Classify driver failures into fixed public text; never return driver details."""
+    if isinstance(error, DatabaseConnectionError):
+        return str(error), "Check DATABASE_SSLROOTCERT points to a CA file inside the project."
+    if isinstance(error, psycopg.OperationalError):
+        message = str(error).lower()
+        if any(term in message for term in ("certificate verify failed", "root certificate")):
+            return (
+                "DATABASE_TLS_VERIFICATION_FAILED",
+                "Database TLS verification failed. Set DATABASE_SSLROOTCERT to the downloaded "
+                "database CA certificate path inside the project; "
+                "server verification remains enabled.",
+            )
+        if "password authentication failed" in message:
+            return (
+                "DATABASE_AUTHENTICATION_FAILED",
+                "Database rejected the credentials in DATABASE_URL.",
+            )
+        if any(term in message for term in ("could not translate host", "getaddrinfo")):
+            return (
+                "DATABASE_DNS_FAILED",
+                "Database hostname could not be resolved; check DATABASE_URL and DNS.",
+            )
+        if any(term in message for term in ("timeout", "timed out")):
+            return (
+                "DATABASE_CONNECTION_TIMEOUT",
+                "Database connection timed out; check network access and database availability.",
+            )
+        return (
+            "DATABASE_CONNECTION_FAILED",
+            "Database connection failed; check network access and database connection settings.",
+        )
+    return "MIGRATION_FAILED", "Database administration failed"
 
 
 def make_connection_factory(

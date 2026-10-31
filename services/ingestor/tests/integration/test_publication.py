@@ -68,10 +68,10 @@ def snapshot(connection):
     return tuple(
         connection.execute(query).fetchall()
         for query in (
-            "SELECT * FROM supermarket.products ORDER BY chain_id,item_code",
-            "SELECT * FROM supermarket.chains ORDER BY id",
-            "SELECT * FROM supermarket.refresh_run_chains ORDER BY run_id,chain_id",
-            "SELECT * FROM supermarket.chain_leases ORDER BY chain_id",
+            "SELECT * FROM public.products ORDER BY chain_id,item_code",
+            "SELECT * FROM public.chains ORDER BY id",
+            "SELECT * FROM public.refresh_run_chains ORDER BY run_id,chain_id",
+            "SELECT * FROM public.chain_leases ORDER BY chain_id",
         )
     )
 
@@ -83,7 +83,7 @@ def test_one_branch_publication_commits_catalog_metadata_and_outcome(publication
     assert publication_db.execute(
         "SELECT item_code,price,sample_count,package_quantity,package_unit,source_quantity,"
         "source_unit_qty,source_updated_at,newest_source_updated_at,run_id "
-        "FROM supermarket.products "
+        "FROM public.products "
         "ORDER BY item_code"
     ).fetchall() == [
         (
@@ -102,17 +102,15 @@ def test_one_branch_publication_commits_catalog_metadata_and_outcome(publication
     ]
     assert publication_db.execute(
         "SELECT current_run_id,product_count,source_updated_at,catalog_updated_at>SOURCE_TIME "
-        "FROM supermarket.chains CROSS JOIN (SELECT %s::timestamptz AS SOURCE_TIME) t "
+        "FROM public.chains CROSS JOIN (SELECT %s::timestamptz AS SOURCE_TIME) t "
         "WHERE id='victory'",
         (SOURCE_TIME,),
     ).fetchone() == (owner.run_id, 2, SOURCE_TIME, True)
     assert publication_db.execute(
         "SELECT status,attempt_count,successful_branch_count,product_count,invalid_row_count,"
-        "started_at IS NOT NULL,finished_at IS NOT NULL FROM supermarket.refresh_run_chains"
+        "started_at IS NOT NULL,finished_at IS NOT NULL FROM public.refresh_run_chains"
     ).fetchone() == ("SUCCEEDED", 1, 1, 2, 2, True, True)
-    assert publication_db.execute("SELECT count(*) FROM supermarket.chain_leases").fetchone() == (
-        0,
-    )
+    assert publication_db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
 
 
 def test_success_removes_absent_products_and_preserves_other_chain(publication_db):
@@ -122,7 +120,7 @@ def test_success_removes_absent_products_and_preserves_other_chain(publication_d
     next_owner = owner_for(publication_db)
     publish_collection(publication_db, next_owner, collection("keep", "new"))
     assert publication_db.execute(
-        "SELECT chain_id,item_code FROM supermarket.products ORDER BY chain_id,item_code"
+        "SELECT chain_id,item_code FROM public.products ORDER BY chain_id,item_code"
     ).fetchall() == [("osher-ad", "untouched"), ("victory", "keep"), ("victory", "new")]
 
 
@@ -148,8 +146,7 @@ def test_unpublishable_result_preserves_catalog_and_records_failed_chain(
     assert not publish_collection(publication_db, owner, result)
     assert snapshot(publication_db)[:2] == old
     assert publication_db.execute(
-        "SELECT status,error_code,product_count FROM supermarket.refresh_run_chains "
-        "WHERE run_id=%s",
+        "SELECT status,error_code,product_count FROM public.refresh_run_chains WHERE run_id=%s",
         (owner.run_id,),
     ).fetchone() == (
         "FAILED",
@@ -167,7 +164,7 @@ def test_mid_transaction_failures_roll_back_catalog_outcome_and_lease(publicatio
     before = snapshot(publication_db)
     if fault == "expire_during_insert":
         body = (
-            "UPDATE supermarket.chain_leases SET heartbeat_at=clock_timestamp()-interval '2 hours',"
+            "UPDATE public.chain_leases SET heartbeat_at=clock_timestamp()-interval '2 hours',"
             " expires_at=clock_timestamp()-interval '1 hour' "
             "WHERE chain_id=NEW.chain_id; RETURN NEW;"
         )
@@ -175,12 +172,12 @@ def test_mid_transaction_failures_roll_back_catalog_outcome_and_lease(publicatio
         body = "RAISE EXCEPTION 'synthetic-private-database-detail';"
     table, event = ("chains", "UPDATE") if fault == "metadata" else ("products", "INSERT")
     publication_db.execute(
-        f"CREATE FUNCTION supermarket.inject_failure() RETURNS trigger "
+        f"CREATE FUNCTION public.inject_failure() RETURNS trigger "
         f"LANGUAGE plpgsql AS $$ BEGIN {body} END $$"
     )
     publication_db.execute(
-        f"CREATE TRIGGER inject_failure BEFORE {event} ON supermarket.{table} "
-        "FOR EACH ROW EXECUTE FUNCTION supermarket.inject_failure()"
+        f"CREATE TRIGGER inject_failure BEFORE {event} ON public.{table} "
+        "FOR EACH ROW EXECUTE FUNCTION public.inject_failure()"
     )
     stream = io.StringIO()
     with pytest.raises(OwnershipError if fault == "expire_during_insert" else psycopg.Error):
@@ -200,7 +197,7 @@ def test_stale_or_unauthorized_owner_cannot_modify_catalog(publication_db, fault
     owner = owner_for(publication_db)
     if fault == "expired":
         publication_db.execute(
-            "UPDATE supermarket.chain_leases SET heartbeat_at=clock_timestamp()-"
+            "UPDATE public.chain_leases SET heartbeat_at=clock_timestamp()-"
             "interval '2 hours',expires_at=clock_timestamp()-interval '1 hour'"
         )
     elif fault == "wrong_token":
@@ -233,12 +230,10 @@ def test_old_source_watermark_is_not_replaced_with_ingestion_time(publication_db
         publication_db, owner, collection("old-source", source_time=earlier, successes=3)
     )
     assert publication_db.execute(
-        "SELECT source_updated_at,catalog_updated_at>%s FROM supermarket.chains WHERE id='victory'",
+        "SELECT source_updated_at,catalog_updated_at>%s FROM public.chains WHERE id='victory'",
         (earlier,),
     ).fetchone() == (earlier, True)
-    assert publication_db.execute("SELECT sample_count FROM supermarket.products").fetchone() == (
-        3,
-    )
+    assert publication_db.execute("SELECT sample_count FROM public.products").fetchone() == (3,)
 
 
 @pytest.mark.parametrize(
@@ -269,9 +264,7 @@ def test_expired_owner_cannot_overwrite_new_run(publication_db, new_published):
     old_owner = owner_for(publication_db)
     # Simulate a missing reservation; admission must reconcile the old run
     # before reserving the same chain for its replacement.
-    publication_db.execute(
-        "DELETE FROM supermarket.chain_leases WHERE run_id=%s", (old_owner.run_id,)
-    )
+    publication_db.execute("DELETE FROM public.chain_leases WHERE run_id=%s", (old_owner.run_id,))
     new_owner = owner_for(publication_db)
     if new_published:
         publish_collection(publication_db, new_owner, collection("newer"))
@@ -293,7 +286,7 @@ def test_attempt_summary_and_logs_are_bounded_metadata_only(publication_db):
         publication_db, owner, result, logger=create_logger(transport=ConsoleTransport(stream))
     )
     assert publication_db.execute(
-        "SELECT attempt_count,sampled_branch_ids FROM supermarket.refresh_run_chains"
+        "SELECT attempt_count,sampled_branch_ids FROM public.refresh_run_chains"
     ).fetchone() == (
         2,
         [

@@ -1,0 +1,11 @@
+CREATE SCHEMA supermarket;
+REVOKE ALL ON SCHEMA supermarket FROM PUBLIC;
+ALTER TABLE IF EXISTS public.chains SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.products SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.refresh_runs SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.refresh_run_chains SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.chain_leases SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.schedule_claims SET SCHEMA supermarket;
+ALTER TABLE IF EXISTS public.schema_migrations SET SCHEMA supermarket;
+ALTER FUNCTION public.distinct_values(text[]) SET SCHEMA supermarket;
+GRANT USAGE ON SCHEMA supermarket TO supermarket_search, supermarket_control, supermarket_ingestor;

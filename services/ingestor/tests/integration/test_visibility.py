@@ -23,12 +23,12 @@ def test_readers_see_complete_catalog_and_one_snapshot_across_commit(publication
     publish_collection(publication_db, old_owner, collection("old-a", "old-b"))
     owner = owner_for(publication_db)
     publication_db.execute(
-        "CREATE FUNCTION supermarket.pause_insert() RETURNS trigger LANGUAGE plpgsql AS $$ "
+        "CREATE FUNCTION public.pause_insert() RETURNS trigger LANGUAGE plpgsql AS $$ "
         "BEGIN PERFORM pg_advisory_xact_lock(1397900114,1); RETURN NEW; END $$"
     )
     publication_db.execute(
-        "CREATE TRIGGER pause_insert BEFORE INSERT ON supermarket.products "
-        "FOR EACH ROW EXECUTE FUNCTION supermarket.pause_insert()"
+        "CREATE TRIGGER pause_insert BEFORE INSERT ON public.products "
+        "FOR EACH ROW EXECUTE FUNCTION public.pause_insert()"
     )
     publication_db.execute("SELECT pg_advisory_lock(1397900114,1)")
     writer_pid = Queue()
@@ -41,7 +41,7 @@ def test_readers_see_complete_catalog_and_one_snapshot_across_commit(publication
 
     query = (
         "SELECT p.item_code,c.product_count,c.current_run_id,p.run_id "
-        "FROM supermarket.products p JOIN supermarket.chains c ON c.id=p.chain_id "
+        "FROM public.products p JOIN public.chains c ON c.id=p.chain_id "
         "WHERE c.id='victory' ORDER BY p.item_code"
     )
     with ThreadPoolExecutor(max_workers=1) as workers:

@@ -7,7 +7,7 @@ the Python wheel alone does not install the repository's SQL assets.
 
 ## Scope and permissions
 
-The private `supermarket` schema contains chains, current products, runs,
+The `public` schema contains chains, current products, runs,
 per-chain run outcomes, leases and daily claims. There is no price-history or raw
 catalog table. Ten chain IDs are seeded; Carrefour and Shufersal start disabled.
 Transactional publication, run recovery and retention are implemented repository
@@ -51,9 +51,23 @@ admission, ownership and fencing; those rules are not fully enforced by DDL.
 
 Use the existing `DATABASE_URL` through the launching process or secret injection.
 An optional nonempty `MIGRATION_DATABASE_URL` overrides it; no additional variable
-is required for setup. No environment file is read, and credentials
+is required for setup. CLI launches automatically load the scraper-root `.env`
+without interpolation; process variables take precedence. Explicitly injected
+environment mappings bypass file loading. Credentials
 are not accepted as command arguments or emitted in logs. The administrator needs
-permission to create the private schema, objects and permission roles.
+permission to create the public schema, objects and permission roles.
+
+Remote connections enforce `verify-full`. When the system trust store does not
+trust the database CA, download the certificate from Supabase Database Settings
+→ SSL Configuration and save it as `certs/supabase-ca.crt`. Set
+`DATABASE_SSLROOTCERT=certs/supabase-ca.crt` in the root `.env` or process.
+The file must exist inside this project; it is used by both migration and worker
+connections. No TLS verification is disabled. See [Supabase SSL guidance](https://supabase.com/docs/guides/database/connecting-to-postgres#ssl).
+
+Migration failures classify TLS verification, authentication, DNS and timeout
+errors using fixed diagnostic messages; raw driver text and credentials stay
+redacted. `DATABASE_TLS_VERIFICATION_FAILED` means the CA trust/verification
+needs attention. No migration SQL runs when connection establishment fails.
 
 ```powershell
 & .venv312/Scripts/python.exe -m ingestor.repository.migrate status
@@ -293,7 +307,7 @@ For capacity measurement on the designated environment, inspect table totals
 ```sql
 SELECT c.relname, pg_total_relation_size(c.oid) AS bytes
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'supermarket' AND c.relkind = 'r'
+WHERE n.nspname = 'public' AND c.relkind = 'r'
 ORDER BY bytes DESC;
 ```
 

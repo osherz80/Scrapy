@@ -7,9 +7,41 @@ from ingestor.repository.migrate import MigrationError, load_migrations, main
 ROOT = Path(__file__).resolve().parents[4]
 
 
+@pytest.mark.parametrize(
+    "message,code,hint",
+    [
+        (
+            "SSL error: certificate verify failed",
+            "DATABASE_TLS_VERIFICATION_FAILED",
+            "DATABASE_SSLROOTCERT",
+        ),
+        ("password authentication failed", "DATABASE_AUTHENTICATION_FAILED", "credentials"),
+        ("could not translate host name", "DATABASE_DNS_FAILED", "hostname"),
+        ("connection timeout expired", "DATABASE_CONNECTION_TIMEOUT", "network"),
+    ],
+)
+def test_connection_failure_has_actionable_safe_diagnostic(
+    monkeypatch, capsys, message, code, hint
+):
+    import json
+
+    from ingestor.repository import migrate
+
+    def connect(*args, **kwargs):
+        raise migrate.psycopg.OperationalError(message + " private-credential")
+
+    monkeypatch.setattr(migrate.psycopg, "connect", connect)
+    assert main(["status"], env={"DATABASE_URL": "postgresql://admin:secret@db.test/db"}) == 2
+    output = capsys.readouterr().err
+    record = json.loads(output)
+    assert record["fields"]["error_code"] == code
+    assert hint in record["message"]
+    assert "private-credential" not in output and "db.test" not in output
+
+
 def test_repository_has_ordered_paired_forward_and_rollback_migrations():
     migrations = load_migrations(ROOT)
-    assert [migration.version for migration in migrations] == ["001"]
+    assert [migration.version for migration in migrations] == ["001", "002"]
     assert len(migrations[0].checksum) == 64
     assert "CREATE TABLE supermarket.products" in migrations[0].forward
     assert "DROP TABLE supermarket.products" in migrations[0].rollback

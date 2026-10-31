@@ -36,6 +36,9 @@ def unmigrated_db(db_url):
 @pytest.fixture
 def db(unmigrated_db):
     unmigrated_db.execute((ROOT / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8"))
+    unmigrated_db.execute(
+        (ROOT / "db/migrations/002_public_schema.sql").read_text(encoding="utf-8")
+    )
     return unmigrated_db
 
 

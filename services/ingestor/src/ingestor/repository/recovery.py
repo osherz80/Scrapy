@@ -22,8 +22,7 @@ def _timeouts(connection):
 
 def _states(connection, run_id):
     return connection.execute(
-        "SELECT chain_id,status FROM supermarket.refresh_run_chains "
-        "WHERE run_id=%s ORDER BY chain_id",
+        "SELECT chain_id,status FROM public.refresh_run_chains WHERE run_id=%s ORDER BY chain_id",
         (run_id,),
     ).fetchall()
 
@@ -31,16 +30,16 @@ def _states(connection, run_id):
 def _finalize(connection, run_id, now, error_code=None):
     status = final_status(tuple(row[1] for row in _states(connection, run_id)))
     connection.execute(
-        "UPDATE supermarket.refresh_runs SET status=%s,finished_at=%s,error_code=%s WHERE id=%s",
+        "UPDATE public.refresh_runs SET status=%s,finished_at=%s,error_code=%s WHERE id=%s",
         (status, now, None if status == "SUCCEEDED" else error_code or "CHAIN_FAILURE", run_id),
     )
-    connection.execute("DELETE FROM supermarket.chain_leases WHERE run_id=%s", (run_id,))
+    connection.execute("DELETE FROM public.chain_leases WHERE run_id=%s", (run_id,))
     return status
 
 
 def _fail_unfinished(connection, run_id, now, error_code):
     connection.execute(
-        "UPDATE supermarket.refresh_run_chains SET status='FAILED',finished_at=%s,"
+        "UPDATE public.refresh_run_chains SET status='FAILED',finished_at=%s,"
         "error_code=%s,error_message=NULL WHERE run_id=%s AND status IN ('PENDING','RUNNING')",
         (now, error_code, run_id),
     )
@@ -51,7 +50,7 @@ def _reconcile_one(connection, run_id):
     # takes admission advisory locks, avoiding a cycle when two disjoint requests
     # recover different chains that belonged to the same abandoned run.
     run = connection.execute(
-        "SELECT status,created_at,started_at FROM supermarket.refresh_runs WHERE id=%s FOR UPDATE",
+        "SELECT status,created_at,started_at FROM public.refresh_runs WHERE id=%s FOR UPDATE",
         (run_id,),
     ).fetchone()
     if run is None or run[0] not in ("PENDING", "RUNNING"):
@@ -60,7 +59,7 @@ def _reconcile_one(connection, run_id):
         row[0] for row in _states(connection, run_id) if row[1] in ("PENDING", "RUNNING")
     )
     leases = connection.execute(
-        "SELECT chain_id,owner_token,expires_at FROM supermarket.chain_leases "
+        "SELECT chain_id,owner_token,expires_at FROM public.chain_leases "
         "WHERE run_id=%s ORDER BY chain_id FOR UPDATE",
         (run_id,),
     ).fetchall()
@@ -92,7 +91,7 @@ def reconcile_for_admission(
 ) -> tuple[UUID, ...]:
     """Internal composition point: caller already owns the admission transaction."""
     rows = connection.execute(
-        "SELECT id FROM supermarket.refresh_runs WHERE status IN ('PENDING','RUNNING') "
+        "SELECT id FROM public.refresh_runs WHERE status IN ('PENDING','RUNNING') "
         "AND requested_chains && %s ORDER BY id",
         (list(chains),),
     ).fetchall()
@@ -104,8 +103,7 @@ def reconcile_expired(connection: psycopg.Connection) -> tuple[UUID, ...]:
     with connection.transaction():
         _timeouts(connection)
         rows = connection.execute(
-            "SELECT id FROM supermarket.refresh_runs "
-            "WHERE status IN ('PENDING','RUNNING') ORDER BY id"
+            "SELECT id FROM public.refresh_runs WHERE status IN ('PENDING','RUNNING') ORDER BY id"
         ).fetchall()
         changed = tuple(row[0] for row in rows if _reconcile_one(connection, row[0]))
     return changed
@@ -119,7 +117,7 @@ def get_run_status(connection: psycopg.Connection, run_id: UUID) -> RunStatus | 
         _reconcile_one(connection, run_id)
         row = connection.execute(
             "SELECT id,status,dispatch_state,requested_chains,created_at,started_at,finished_at,"
-            "error_code,github_run_id FROM supermarket.refresh_runs WHERE id=%s",
+            "error_code,github_run_id FROM public.refresh_runs WHERE id=%s",
             (run_id,),
         ).fetchone()
         if row is None:
@@ -127,7 +125,7 @@ def get_run_status(connection: psycopg.Connection, run_id: UUID) -> RunStatus | 
         chains = connection.execute(
             "SELECT chain_id,status,attempt_count,successful_branch_count,product_count,"
             "invalid_row_count,"
-            "conflict_count,source_updated_at,error_code FROM supermarket.refresh_run_chains "
+            "conflict_count,source_updated_at,error_code FROM public.refresh_run_chains "
             "WHERE run_id=%s ORDER BY chain_id",
             (run_id,),
         ).fetchall()
@@ -153,7 +151,7 @@ def finish_run(connection: psycopg.Connection, owner: RunOwnership, *, abort: bo
     with connection.transaction():
         _timeouts(connection)
         run = connection.execute(
-            "SELECT status,requested_chains FROM supermarket.refresh_runs WHERE id=%s FOR UPDATE",
+            "SELECT status,requested_chains FROM public.refresh_runs WHERE id=%s FOR UPDATE",
             (owner.run_id,),
         ).fetchone()
         if run is None:
@@ -169,7 +167,7 @@ def finish_run(connection: psycopg.Connection, owner: RunOwnership, *, abort: bo
             raise RecoveryError("UNFINISHED_CHAINS")
         if active:
             leases = connection.execute(
-                "SELECT chain_id,owner_token FROM supermarket.chain_leases "
+                "SELECT chain_id,owner_token FROM public.chain_leases "
                 "WHERE run_id=%s AND chain_id=ANY(%s) ORDER BY chain_id FOR UPDATE",
                 (owner.run_id, list(active)),
             ).fetchall()
@@ -190,17 +188,15 @@ def prune_runs(connection: psycopg.Connection) -> tuple[UUID, ...]:
     with connection.transaction():
         _timeouts(connection)
         rows = connection.execute(
-            "SELECT r.id FROM supermarket.refresh_runs r "
+            "SELECT r.id FROM public.refresh_runs r "
             "WHERE r.status IN ('SUCCEEDED','PARTIAL_FAILED','FAILED') "
             "AND r.finished_at < clock_timestamp()-interval '30 days' "
-            "AND NOT EXISTS(SELECT 1 FROM supermarket.chain_leases l WHERE l.run_id=r.id) "
-            "AND NOT EXISTS(SELECT 1 FROM supermarket.chains c WHERE c.current_run_id=r.id) "
-            "AND NOT EXISTS(SELECT 1 FROM supermarket.products p WHERE p.run_id=r.id) "
+            "AND NOT EXISTS(SELECT 1 FROM public.chain_leases l WHERE l.run_id=r.id) "
+            "AND NOT EXISTS(SELECT 1 FROM public.chains c WHERE c.current_run_id=r.id) "
+            "AND NOT EXISTS(SELECT 1 FROM public.products p WHERE p.run_id=r.id) "
             "ORDER BY r.id LIMIT 100 FOR UPDATE OF r SKIP LOCKED"
         ).fetchall()
         ids = tuple(row[0] for row in rows)
         if ids:
-            connection.execute(
-                "DELETE FROM supermarket.refresh_runs WHERE id=ANY(%s)", (list(ids),)
-            )
+            connection.execute("DELETE FROM public.refresh_runs WHERE id=ANY(%s)", (list(ids),))
     return ids

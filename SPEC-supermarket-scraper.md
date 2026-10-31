@@ -237,3 +237,7 @@ Future billing and MCP consume the same published catalogs; ingestion must not d
 Sources checked during design: [scraper](https://github.com/OpenIsraeliSupermarkets/israeli-supermarket-scarpers), [israeli-prices](https://github.com/rxradar/israeli-prices), [GitHub scheduling](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule), [Render cron billing](https://render.com/docs/cronjobs), [Supabase pricing](https://supabase.com/pricing). Recheck current limits and dependencies during implementation.
 
 No further business interview is required. Remaining evidence gates: actual hosted reachability, exact library versions, completeness of published package fields, live storage/runtime, and the chosen repository/account deployment values. A failed gate must be reported with a concrete alternative; never silently weaken the confirmed business behavior.
+
+### Database schema placement (2026-10-31)
+
+Store all scraper tables in the existing `public` schema. Do not retain a separate `supermarket` schema. Migration 002 moves existing tables, the validation function, and migration history into public without losing data. Runtime SQL explicitly qualifies public tables. Existing least-privilege table permissions remain in effect.

@@ -13,7 +13,16 @@ Add the existing direct connection string as the repository Actions secret
 CI and source-only probes do not receive it. No workflow reads, uploads or creates
 an `.env` file. No separate migration URL or CI password secret is required.
 
-The private schema must already be migrated and the URL's login must have the
+Add a second repository Actions secret, `DATABASE_CA_CERT`, containing the entire
+downloaded PEM certificate including BEGIN/END CERTIFICATE lines. The refresh
+step requires this secret, writes it without logging to `Temp/database-ca.crt`
+with restricted file permissions, validates its PEM format, and sets
+`DATABASE_SSLROOTCERT` to that path. The file is removed on step exit; probe/CI
+steps receive neither database secret. Local CLI `.env` bootstrap does not
+provision hosted secrets or certificates. Verified hosted connectivity remains
+a launch prerequisite.
+
+The public schema must already be migrated and the URL's login must have the
 runtime permissions described in [database setup](database.md). Workflows never
 apply production migrations automatically. The administrator's explicit migration
 command remains `python -m ingestor.repository.migrate apply` with an authorized

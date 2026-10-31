@@ -29,10 +29,10 @@ def test_daily_claim_reserves_all_configured_active_chains_and_is_idempotent(sch
     assert result.outcome == "ADMITTED"
     assert claim_daily_run(schedule_db, date(2026, 7, 15), chains).outcome == "ALREADY_CLAIMED"
     assert schedule_db.execute(
-        "SELECT count(*) FROM supermarket.chain_leases WHERE run_id=%s", (result.run_id,)
+        "SELECT count(*) FROM public.chain_leases WHERE run_id=%s", (result.run_id,)
     ).fetchone() == (8,)
     assert schedule_db.execute(
-        "SELECT origin,dispatch_state FROM supermarket.refresh_runs"
+        "SELECT origin,dispatch_state FROM public.refresh_runs"
     ).fetchone() == ("SCHEDULED", "NOT_REQUIRED")
 
 
@@ -49,16 +49,16 @@ def test_concurrent_daily_invocations_claim_once_using_control_role(schedule_db)
         results = list(workers.map(claim, range(2)))
     assert sorted(result.outcome for result in results) == ["ADMITTED", "ALREADY_CLAIMED"]
     assert len({result.run_id for result in results}) == 1
-    assert schedule_db.execute("SELECT count(*) FROM supermarket.refresh_runs").fetchone() == (1,)
+    assert schedule_db.execute("SELECT count(*) FROM public.refresh_runs").fetchone() == (1,)
 
 
 def test_manual_overlap_records_scheduled_conflict_without_partial_reservation(schedule_db):
     manual = admit_run(schedule_db, ("victory",))
     result = claim_daily_run(schedule_db, date(2026, 7, 15), ("victory", "osher-ad"))
     assert result.outcome == "SCHEDULE_CONFLICT"
-    assert schedule_db.execute(
-        "SELECT chain_id,run_id FROM supermarket.chain_leases"
-    ).fetchall() == [("victory", manual.id)]
+    assert schedule_db.execute("SELECT chain_id,run_id FROM public.chain_leases").fetchall() == [
+        ("victory", manual.id)
+    ]
     state = get_run_status(schedule_db, result.run_id)
     assert state.status == "FAILED" and state.error_code == "SCHEDULE_CONFLICT"
     assert len(state.chains) == 2 and all(chain.status == "FAILED" for chain in state.chains)
@@ -69,12 +69,12 @@ def test_manual_overlap_records_scheduled_conflict_without_partial_reservation(s
 
 
 def test_failed_claim_insert_rolls_back_run_and_all_leases(schedule_db):
-    schedule_db.execute("REVOKE INSERT ON supermarket.schedule_claims FROM supermarket_control")
+    schedule_db.execute("REVOKE INSERT ON public.schedule_claims FROM supermarket_control")
     schedule_db.execute("SET ROLE supermarket_control")
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         claim_daily_run(schedule_db, date(2026, 7, 15), ("victory",))
-    assert schedule_db.execute("SELECT count(*) FROM supermarket.refresh_runs").fetchone() == (0,)
-    assert schedule_db.execute("SELECT count(*) FROM supermarket.chain_leases").fetchone() == (0,)
+    assert schedule_db.execute("SELECT count(*) FROM public.refresh_runs").fetchone() == (0,)
+    assert schedule_db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
 
 
 def test_scheduled_composition_admits_then_executes_fixture_worker_once(schedule_db):
@@ -100,6 +100,6 @@ def test_scheduled_composition_admits_then_executes_fixture_worker_once(schedule
     assert run_scheduled(**kwargs) == 0
     assert run_scheduled(**kwargs) == 0
     assert calls == ["victory"]
-    assert schedule_db.execute("SELECT status FROM supermarket.refresh_runs").fetchone() == (
+    assert schedule_db.execute("SELECT status FROM public.refresh_runs").fetchone() == (
         "SUCCEEDED",
     )

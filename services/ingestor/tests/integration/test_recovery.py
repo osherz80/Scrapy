@@ -28,7 +28,7 @@ def recovery_db(migration_db):
 
 def expire(connection, run_id):
     connection.execute(
-        "UPDATE supermarket.chain_leases SET heartbeat_at=clock_timestamp()-interval '2 hours',"
+        "UPDATE public.chain_leases SET heartbeat_at=clock_timestamp()-interval '2 hours',"
         "expires_at=clock_timestamp()-interval '1 hour' WHERE run_id=%s",
         (run_id,),
     )
@@ -51,7 +51,7 @@ def test_status_reconciles_hard_kill_expiry_once_and_allows_readmission(recovery
     assert state.github_run_id == ("12345" if running else None)
     assert get_run_status(recovery_db, run.id) == state
     assert reconcile_expired(recovery_db) == ()
-    assert recovery_db.execute("SELECT count(*) FROM supermarket.chain_leases").fetchone() == (0,)
+    assert recovery_db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
     admit_run(recovery_db, run.chains)
     if running:
         with pytest.raises(OwnershipError, match="LEASE_LOST"):
@@ -61,7 +61,7 @@ def test_status_reconciles_hard_kill_expiry_once_and_allows_readmission(recovery
 def test_partial_publication_survives_remaining_worker_expiry(recovery_db):
     owner = owner_for(recovery_db, ("victory", "osher-ad"))
     publish_collection(recovery_db, owner, collection("keep"))
-    before = recovery_db.execute("SELECT * FROM supermarket.products").fetchall()
+    before = recovery_db.execute("SELECT * FROM public.products").fetchall()
     expire(recovery_db, owner.run_id)
     state = get_run_status(recovery_db, owner.run_id)
     assert state.status == "PARTIAL_FAILED"
@@ -69,9 +69,9 @@ def test_partial_publication_survives_remaining_worker_expiry(recovery_db):
         "victory": "SUCCEEDED",
         "osher-ad": "FAILED",
     }
-    assert recovery_db.execute("SELECT * FROM supermarket.products").fetchall() == before
+    assert recovery_db.execute("SELECT * FROM public.products").fetchall() == before
     assert recovery_db.execute(
-        "SELECT current_run_id FROM supermarket.chains WHERE id='victory'"
+        "SELECT current_run_id FROM public.chains WHERE id='victory'"
     ).fetchone() == (owner.run_id,)
 
 
@@ -79,7 +79,7 @@ def test_unexpired_runs_are_untouched_and_missing_lease_is_recovered(recovery_db
     owner = owner_for(recovery_db)
     assert reconcile_expired(recovery_db) == ()
     assert get_run_status(recovery_db, owner.run_id).status == "RUNNING"
-    recovery_db.execute("DELETE FROM supermarket.chain_leases WHERE run_id=%s", (owner.run_id,))
+    recovery_db.execute("DELETE FROM public.chain_leases WHERE run_id=%s", (owner.run_id,))
     assert reconcile_expired(recovery_db) == (owner.run_id,)
     assert get_run_status(recovery_db, owner.run_id).error_code == "LEASE_MISSING"
 
@@ -89,9 +89,9 @@ def test_new_admission_reconciles_all_chains_of_overlapping_abandoned_run(recove
     expire(recovery_db, old.run_id)
     fresh = admit_run(recovery_db, ("victory",))
     assert get_run_status(recovery_db, old.run_id).status == "FAILED"
-    assert recovery_db.execute(
-        "SELECT chain_id,run_id FROM supermarket.chain_leases"
-    ).fetchall() == [("victory", fresh.id)]
+    assert recovery_db.execute("SELECT chain_id,run_id FROM public.chain_leases").fetchall() == [
+        ("victory", fresh.id)
+    ]
     admit_run(recovery_db, ("osher-ad",))
 
 
@@ -113,10 +113,8 @@ def test_teardown_fails_only_unfinished_chains_and_rejects_wrong_owner(recovery_
     assert finish_run(recovery_db, owner, abort=True) == "PARTIAL_FAILED"
     assert finish_run(recovery_db, owner, abort=True) == "PARTIAL_FAILED"
     assert get_run_status(recovery_db, owner.run_id).error_code == "WORKER_ABORTED"
-    assert recovery_db.execute("SELECT item_code FROM supermarket.products").fetchall() == [
-        ("keep",)
-    ]
-    assert recovery_db.execute("SELECT count(*) FROM supermarket.chain_leases").fetchone() == (0,)
+    assert recovery_db.execute("SELECT item_code FROM public.products").fetchall() == [("keep",)]
+    assert recovery_db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
 
 
 def test_completed_success_and_failure_have_honest_run_outcomes(recovery_db):
@@ -131,7 +129,7 @@ def test_completed_success_and_failure_have_honest_run_outcomes(recovery_db):
 def test_job_deadline_recovers_even_if_lease_is_still_in_future(recovery_db):
     owner = owner_for(recovery_db)
     recovery_db.execute(
-        "UPDATE supermarket.refresh_runs SET created_at=created_at-interval '1 hour',"
+        "UPDATE public.refresh_runs SET created_at=created_at-interval '1 hour',"
         "started_at=started_at-interval '1 hour' WHERE id=%s",
         (owner.run_id,),
     )
@@ -157,7 +155,7 @@ def test_two_new_admissions_race_to_recover_one_old_run_without_deadlock(recover
 
 def age_run(connection, run_id, days):
     connection.execute(
-        "UPDATE supermarket.refresh_runs SET created_at=created_at-%s,"
+        "UPDATE public.refresh_runs SET created_at=created_at-%s,"
         "started_at=started_at-%s,finished_at=finished_at-%s WHERE id=%s",
         (timedelta(days=days),) * 3 + (run_id,),
     )
@@ -170,7 +168,7 @@ def test_retention_prunes_old_unreferenced_terminal_runs_only(recovery_db):
     old = owner_for(recovery_db, ("osher-ad",))
     finish_run(recovery_db, old, abort=True)
     recovery_db.execute(
-        "INSERT INTO supermarket.schedule_claims(local_date,run_id) VALUES (current_date-40,%s)",
+        "INSERT INTO public.schedule_claims(local_date,run_id) VALUES (current_date-40,%s)",
         (old.run_id,),
     )
     recent = owner_for(recovery_db, ("osher-ad",))
@@ -183,14 +181,10 @@ def test_retention_prunes_old_unreferenced_terminal_runs_only(recovery_db):
     assert prune_runs(recovery_db) == (old.run_id,)
     assert prune_runs(recovery_db) == ()
     assert recovery_db.execute(
-        "SELECT id FROM supermarket.refresh_runs ORDER BY id"
+        "SELECT id FROM public.refresh_runs ORDER BY id"
     ).fetchall() == sorted([(run.run_id,) for run in (referenced, recent, active)])
-    assert recovery_db.execute("SELECT count(*) FROM supermarket.schedule_claims").fetchone() == (
-        0,
-    )
-    assert recovery_db.execute("SELECT item_code FROM supermarket.products").fetchall() == [
-        ("current",)
-    ]
+    assert recovery_db.execute("SELECT count(*) FROM public.schedule_claims").fetchone() == (0,)
+    assert recovery_db.execute("SELECT item_code FROM public.products").fetchall() == [("current",)]
 
 
 def test_retention_keeps_old_terminal_record_with_active_lease_reference(recovery_db):
@@ -198,7 +192,7 @@ def test_retention_keeps_old_terminal_record_with_active_lease_reference(recover
     # Defensive retention: preserve even inconsistent terminal records if a
     # reservation still references them; pruning must never erase a live lease.
     recovery_db.execute(
-        "UPDATE supermarket.refresh_runs SET status='FAILED',finished_at=clock_timestamp()"
+        "UPDATE public.refresh_runs SET status='FAILED',finished_at=clock_timestamp()"
     )
     age_run(recovery_db, owner.run_id, 31)
     assert prune_runs(recovery_db) == ()
@@ -212,9 +206,9 @@ def test_conflicting_admission_rolls_back_recovery_together_with_new_reservation
         admit_run(recovery_db, ("victory", "osher-ad"))
     # Read without the reconciling status function to inspect rollback itself.
     assert recovery_db.execute(
-        "SELECT status FROM supermarket.refresh_runs WHERE id=%s", (old.run_id,)
+        "SELECT status FROM public.refresh_runs WHERE id=%s", (old.run_id,)
     ).fetchone() == ("RUNNING",)
-    assert set(recovery_db.execute("SELECT run_id FROM supermarket.chain_leases").fetchall()) == {
+    assert set(recovery_db.execute("SELECT run_id FROM public.chain_leases").fetchall()) == {
         (old.run_id,),
         (live.run_id,),
     }
@@ -226,7 +220,7 @@ def test_teardown_can_release_its_own_expired_lease_but_not_a_missing_one(recove
     expire(recovery_db, owner.run_id)
     assert finish_run(recovery_db, owner, abort=True) == "FAILED"
     missing = owner_for(recovery_db)
-    recovery_db.execute("DELETE FROM supermarket.chain_leases WHERE run_id=%s", (missing.run_id,))
+    recovery_db.execute("DELETE FROM public.chain_leases WHERE run_id=%s", (missing.run_id,))
     with pytest.raises(OwnershipError, match="LEASE_LOST"):
         finish_run(recovery_db, missing, abort=True)
     assert get_run_status(recovery_db, missing.run_id).status == "FAILED"
@@ -236,14 +230,14 @@ def test_retention_is_bounded_to_one_hundred_old_runs_per_transaction(recovery_d
     ids = tuple(uuid4() for _ in range(101))
     with recovery_db.cursor() as cursor:
         cursor.executemany(
-            "INSERT INTO supermarket.refresh_runs"
+            "INSERT INTO public.refresh_runs"
             "(id,origin,status,requested_chains,created_at,finished_at) "
             "VALUES (%s,'MANUAL','FAILED',ARRAY['victory'],clock_timestamp()-interval '40 days',"
             "clock_timestamp()-interval '31 days')",
             ((run_id,) for run_id in ids),
         )
         cursor.executemany(
-            "INSERT INTO supermarket.refresh_run_chains(run_id,chain_id,status,finished_at) "
+            "INSERT INTO public.refresh_run_chains(run_id,chain_id,status,finished_at) "
             "VALUES (%s,'victory','FAILED',clock_timestamp()-interval '31 days')",
             ((run_id,) for run_id in ids),
         )
@@ -251,6 +245,4 @@ def test_retention_is_bounded_to_one_hundred_old_runs_per_transaction(recovery_d
     second = prune_runs(recovery_db)
     assert len(first) == 100 and len(second) == 1
     assert set(first + second) == set(ids)
-    assert recovery_db.execute(
-        "SELECT count(*) FROM supermarket.refresh_run_chains"
-    ).fetchone() == (0,)
+    assert recovery_db.execute("SELECT count(*) FROM public.refresh_run_chains").fetchone() == (0,)

@@ -120,7 +120,7 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     def factory(chain, settings, deadline):
         assert chain in run.chains and deadline > 0
         assert db.execute(
-            "SELECT status,started_at IS NOT NULL FROM supermarket.refresh_run_chains "
+            "SELECT status,started_at IS NOT NULL FROM public.refresh_run_chains "
             "WHERE run_id=%s AND chain_id=%s",
             (run.id, chain),
         ).fetchone() == ("RUNNING", True)
@@ -134,9 +134,9 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     state = get_run_status(db, run.id)
     assert state.status == "SUCCEEDED" and state.github_run_id == "12345:1"
     assert db.execute(
-        "SELECT chain_id,item_code,price,sample_count FROM supermarket.products ORDER BY chain_id"
+        "SELECT chain_id,item_code,price,sample_count FROM public.products ORDER BY chain_id"
     ).fetchall() == [(chain, "007", 11, 3) for chain in run.chains]
-    assert db.execute("SELECT count(*) FROM supermarket.chain_leases").fetchone() == (0,)
+    assert db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
     assert "Private fixture product" not in str(capture.records)
     assert "synthetic-secret" not in str(capture.records)
     assert any(record["event"] == "run.finished" for record in capture.records)
@@ -154,7 +154,7 @@ def test_source_failure_does_not_prevent_other_chain_from_publishing(harness):
         "osher-ad": "LISTING_FAILED",
         "victory": None,
     }
-    assert db.execute("SELECT chain_id FROM supermarket.products").fetchall() == [("victory",)]
+    assert db.execute("SELECT chain_id FROM public.products").fetchall() == [("victory",)]
 
 
 def test_duplicate_delivery_does_not_construct_source_or_renewal_connection(harness):
@@ -183,7 +183,7 @@ def test_cancellation_preserves_published_chain_and_aborts_remaining_work(harnes
 
     code, _ = execute(harness, run.id, factory, cancelled=cancelled)
     assert code == 130 and get_run_status(db, run.id).status == "PARTIAL_FAILED"
-    assert db.execute("SELECT chain_id FROM supermarket.products").fetchall() == [("osher-ad",)]
+    assert db.execute("SELECT chain_id FROM public.products").fetchall() == [("osher-ad",)]
     assert all(source.closed for source in sources)
     assert len(sources[1].downloaded) == 1
 
@@ -196,12 +196,12 @@ def test_heartbeat_database_failure_stops_before_publication(harness):
 
     def factory(*args):
         db.execute(
-            "CREATE FUNCTION supermarket.break_heartbeat() RETURNS trigger LANGUAGE plpgsql AS $$ "
+            "CREATE FUNCTION public.break_heartbeat() RETURNS trigger LANGUAGE plpgsql AS $$ "
             "BEGIN RAISE EXCEPTION 'synthetic-private-database-error'; END $$"
         )
         db.execute(
-            "CREATE TRIGGER break_heartbeat BEFORE UPDATE ON supermarket.chain_leases "
-            "FOR EACH ROW EXECUTE FUNCTION supermarket.break_heartbeat()"
+            "CREATE TRIGGER break_heartbeat BEFORE UPDATE ON public.chain_leases "
+            "FOR EACH ROW EXECUTE FUNCTION public.break_heartbeat()"
         )
         return source
 
@@ -214,7 +214,7 @@ def test_heartbeat_database_failure_stops_before_publication(harness):
     )
     assert code == 1 and capture.heartbeat_failed.is_set()
     assert len(source.downloaded) == 1 and source.closed
-    assert db.execute("SELECT count(*) FROM supermarket.products").fetchone() == (0,)
+    assert db.execute("SELECT count(*) FROM public.products").fetchone() == (0,)
     assert get_run_status(db, run.id).status == "FAILED"
     assert "synthetic-private" not in str(capture.records)
 
@@ -288,17 +288,17 @@ def test_publication_failure_aborts_run_but_preserves_previously_published_chain
     db, _, _ = harness
     run = admit_run(db, ("osher-ad", "victory"))
     db.execute(
-        "CREATE FUNCTION supermarket.fail_victory() RETURNS trigger LANGUAGE plpgsql AS $$ "
+        "CREATE FUNCTION public.fail_victory() RETURNS trigger LANGUAGE plpgsql AS $$ "
         "BEGIN IF NEW.chain_id='victory' THEN RAISE EXCEPTION 'private-write-error'; "
         "END IF; RETURN NEW; END $$"
     )
     db.execute(
-        "CREATE TRIGGER fail_victory BEFORE INSERT ON supermarket.products "
-        "FOR EACH ROW EXECUTE FUNCTION supermarket.fail_victory()"
+        "CREATE TRIGGER fail_victory BEFORE INSERT ON public.products "
+        "FOR EACH ROW EXECUTE FUNCTION public.fail_victory()"
     )
     code, capture = execute(harness, run.id, lambda chain, *_: FixtureProvider(chain))
     assert code == 1 and get_run_status(db, run.id).status == "PARTIAL_FAILED"
-    assert db.execute("SELECT chain_id FROM supermarket.products").fetchall() == [("osher-ad",)]
+    assert db.execute("SELECT chain_id FROM public.products").fetchall() == [("osher-ad",)]
     assert "private-write-error" not in str(capture.records)
 
 

@@ -37,21 +37,21 @@ def claim_run(
     with connection.transaction():
         _timeouts(connection)
         row = connection.execute(
-            "SELECT status,requested_chains FROM supermarket.refresh_runs WHERE id=%s FOR UPDATE",
+            "SELECT status,requested_chains FROM public.refresh_runs WHERE id=%s FOR UPDATE",
             (run_id,),
         ).fetchone()
         if row is None or row[0] != "PENDING":
             return None
         chains = tuple(sorted(row[1]))
         leases = connection.execute(
-            "SELECT chain_id,expires_at FROM supermarket.chain_leases "
+            "SELECT chain_id,expires_at FROM public.chain_leases "
             "WHERE run_id=%s ORDER BY chain_id FOR UPDATE",
             (run_id,),
         ).fetchall()
         # Read the clock after acquiring locks: a lease can expire during a wait.
         now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
         pending = connection.execute(
-            "SELECT chain_id FROM supermarket.refresh_run_chains "
+            "SELECT chain_id FROM public.refresh_run_chains "
             "WHERE run_id=%s AND status='PENDING' ORDER BY chain_id",
             (run_id,),
         ).fetchall()
@@ -64,14 +64,14 @@ def claim_run(
         token = uuid4()
         deadline = now + timedelta(seconds=timeout_seconds)
         connection.execute(
-            "UPDATE supermarket.refresh_runs SET status='RUNNING',started_at=%s,github_run_id=%s,"
+            "UPDATE public.refresh_runs SET status='RUNNING',started_at=%s,github_run_id=%s,"
             "dispatch_state=CASE WHEN dispatch_state='NOT_REQUIRED' THEN 'NOT_REQUIRED' "
             "ELSE 'ACKNOWLEDGED' END "
             "WHERE id=%s",
             (now, execution_id, run_id),
         )
         connection.execute(
-            "UPDATE supermarket.chain_leases SET owner_token=%s,heartbeat_at=%s,expires_at=%s "
+            "UPDATE public.chain_leases SET owner_token=%s,heartbeat_at=%s,expires_at=%s "
             "WHERE run_id=%s",
             (token, now, min(deadline, now + timedelta(seconds=lease_seconds)), run_id),
         )
@@ -90,7 +90,7 @@ def heartbeat(
     with connection.transaction():
         _timeouts(connection)
         row = connection.execute(
-            "SELECT status,requested_chains,started_at FROM supermarket.refresh_runs "
+            "SELECT status,requested_chains,started_at FROM public.refresh_runs "
             "WHERE id=%s FOR UPDATE",
             (owner.run_id,),
         ).fetchone()
@@ -99,13 +99,13 @@ def heartbeat(
         active = tuple(
             row[0]
             for row in connection.execute(
-                "SELECT chain_id FROM supermarket.refresh_run_chains "
+                "SELECT chain_id FROM public.refresh_run_chains "
                 "WHERE run_id=%s AND status IN ('PENDING','RUNNING') ORDER BY chain_id",
                 (owner.run_id,),
             ).fetchall()
         )
         leases = connection.execute(
-            "SELECT chain_id,owner_token,expires_at FROM supermarket.chain_leases "
+            "SELECT chain_id,owner_token,expires_at FROM public.chain_leases "
             "WHERE run_id=%s AND chain_id=ANY(%s) ORDER BY chain_id FOR UPDATE",
             (owner.run_id, list(active)),
         ).fetchall()
@@ -118,7 +118,7 @@ def heartbeat(
         ):
             raise OwnershipError("LEASE_LOST")
         connection.execute(
-            "UPDATE supermarket.chain_leases SET heartbeat_at=%s,expires_at=%s "
+            "UPDATE public.chain_leases SET heartbeat_at=%s,expires_at=%s "
             "WHERE run_id=%s AND chain_id=ANY(%s)",
             (
                 now,

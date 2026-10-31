@@ -6,9 +6,11 @@ The API and Neuton backend are outside this implementation's scope.
 
 ## Local development
 
-Use Python 3.12 and uv. Keep the current shell inside this repository. Never read
-`.env`; commands use explicitly supplied process environment only. No command below
-connects to a database or source portal.
+Use Python 3.12 and uv. Keep the current shell inside this repository. Local CLI
+and migration launches automatically load this repository's `.env`; process
+variables take precedence. File contents and credentials are never logged.
+Explicitly injected mappings (including tests) bypass file loading. The local
+development installation commands below do not connect to a database or source portal.
 
 ```powershell
 New-Item -ItemType Directory -Force Temp | Out-Null
@@ -163,11 +165,13 @@ See [database behavior](docs/database.md) for publication, recovery and retentio
 
 Private schema, least-privilege groups, checksum migration history and explicit
 administration commands are implemented; see [database setup](docs/database.md).
-They have been tested on disposable local PostgreSQL, not applied to Supabase.
-Admin commands use the existing `DATABASE_URL` from process environment.
+Migrations 001 and 002 are applied to Supabase; scraper tables are in `public`.
+Admin commands use the existing `DATABASE_URL` from process environment or root `.env`.
 `MIGRATION_DATABASE_URL` is an optional override for separate credentials later;
 the worker's production URL should eventually use an ingestion-only login.
-No command loads `.env`.
+If the database CA is not trusted by the system, download its CA certificate and
+set `DATABASE_SSLROOTCERT=certs/supabase-ca.crt`. See [certificate setup](certs/README.md).
+Both migrations and workers retain TLS certificate and hostname verification.
 
 ```powershell
 & .venv312/Scripts/python.exe -m ingestor.repository.migrate status
@@ -184,6 +188,7 @@ remain launch work; admission, fencing, publication and recovery are implemented
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |
+| DATABASE_SSLROOTCERT | Optional project-local database CA path; defaults to system trust |
 | GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT | Required execution ID / attempt defaults to 1 for refresh |
 | ENABLED_CHAINS | Eight active chains by default; comma-separated distinct registry IDs |
 | PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
@@ -212,4 +217,4 @@ Refresh jobs are capped at 45 minutes and do not cancel unrelated runs.
 The production schema must be explicitly migrated before the first refresh.
 Schedules activate from the default branch after review/merge; pushing a feature
 branch runs CI without activating that branch's cron. Workflows never apply
-production migrations automatically. Supabase has not been changed by development.
+production migrations automatically. Supabase schema changes are applied only by explicit operator authorization.

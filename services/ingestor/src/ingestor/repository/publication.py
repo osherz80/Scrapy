@@ -18,7 +18,7 @@ from ..runs.ownership import OwnershipError, RunOwnership
 from .admission import _timeouts
 
 _INSERT = (
-    "INSERT INTO supermarket.products (chain_id,item_code,name,manufacturer,currency,price,"
+    "INSERT INTO public.products (chain_id,item_code,name,manufacturer,currency,price,"
     "package_quantity,package_unit,source_quantity,source_unit_qty,item_price_updated_at,"
     "is_weighted,sample_count,source_updated_at,newest_source_updated_at,normalized_name,"
     "name_tokens,updated_at,run_id) VALUES (" + ",".join(["%s"] * 19) + ")"
@@ -117,7 +117,7 @@ def _prepare(collection: ChainCollection):
 
 def _check_lease(connection, owner, chain_id, started_at):
     lease = connection.execute(
-        "SELECT run_id,owner_token,expires_at FROM supermarket.chain_leases "
+        "SELECT run_id,owner_token,expires_at FROM public.chain_leases "
         "WHERE chain_id=%s FOR UPDATE",
         (chain_id,),
     ).fetchone()
@@ -131,15 +131,13 @@ def _check_lease(connection, owner, chain_id, started_at):
 
 def _lock_chain(connection, owner, chain_id):
     run = connection.execute(
-        "SELECT status,requested_chains,started_at FROM supermarket.refresh_runs "
-        "WHERE id=%s FOR UPDATE",
+        "SELECT status,requested_chains,started_at FROM public.refresh_runs WHERE id=%s FOR UPDATE",
         (owner.run_id,),
     ).fetchone()
     if run is None or run[0] != "RUNNING" or tuple(sorted(run[1])) != owner.chains:
         raise OwnershipError("LEASE_LOST")
     state = connection.execute(
-        "SELECT status FROM supermarket.refresh_run_chains WHERE run_id=%s AND chain_id=%s "
-        "FOR UPDATE",
+        "SELECT status FROM public.refresh_run_chains WHERE run_id=%s AND chain_id=%s FOR UPDATE",
         (owner.run_id, chain_id),
     ).fetchone()
     if state is None or chain_id not in owner.chains:
@@ -157,7 +155,7 @@ def start_chain(connection: psycopg.Connection, owner: RunOwnership, chain_id: s
         _timeouts(connection)
         _, now = _lock_chain(connection, owner, chain_id)
         connection.execute(
-            "UPDATE supermarket.refresh_run_chains SET status='RUNNING',"
+            "UPDATE public.refresh_run_chains SET status='RUNNING',"
             "started_at=coalesce(started_at,%s) WHERE run_id=%s AND chain_id=%s",
             (now, owner.run_id, chain_id),
         )
@@ -201,14 +199,14 @@ def publish_collection(
             run_started_at, now = _lock_chain(connection, owner, result.chain_id)
             if result.can_publish:
                 connection.execute(
-                    "DELETE FROM supermarket.products WHERE chain_id=%s", (result.chain_id,)
+                    "DELETE FROM public.products WHERE chain_id=%s", (result.chain_id,)
                 )
                 with connection.cursor() as cursor:
                     cursor.executemany(_INSERT, ((*row, now, owner.run_id) for row in rows))
             finished_at = connection.execute("SELECT clock_timestamp()").fetchone()[0]
             if result.can_publish:
                 connection.execute(
-                    "UPDATE supermarket.chains SET current_run_id=%s,catalog_updated_at=%s,"
+                    "UPDATE public.chains SET current_run_id=%s,catalog_updated_at=%s,"
                     "source_updated_at=%s,product_count=%s WHERE id=%s",
                     (
                         owner.run_id,
@@ -231,7 +229,7 @@ def publish_collection(
                 )
             )
             connection.execute(
-                "UPDATE supermarket.refresh_run_chains SET status=%s,attempt_count=%s,"
+                "UPDATE public.refresh_run_chains SET status=%s,attempt_count=%s,"
                 "successful_branch_count=%s,sampled_branch_ids=%s,product_count=%s,invalid_row_count=%s,"
                 "conflict_count=%s,source_updated_at=%s,error_code=%s,error_message=NULL,"
                 "started_at=coalesce(started_at,%s),finished_at=%s WHERE run_id=%s AND chain_id=%s",
@@ -255,7 +253,7 @@ def publish_collection(
             # its lock. Recheck using current DB time before releasing ownership.
             _check_lease(connection, owner, result.chain_id, run_started_at)
             connection.execute(
-                "DELETE FROM supermarket.chain_leases WHERE chain_id=%s AND run_id=%s",
+                "DELETE FROM public.chain_leases WHERE chain_id=%s AND run_id=%s",
                 (result.chain_id, owner.run_id),
             )
     except Exception as error:

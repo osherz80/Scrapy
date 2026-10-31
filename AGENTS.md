@@ -1,9 +1,12 @@
 # Scraper workspace rules
 
-- Never read `.env` or other secret environment files, directly or indirectly
-  through tools, subprocesses, dotenv, or test helpers. Assume supplied settings
-  exist. Use explicitly supplied process environment; never print secret values.
-  Report concrete missing inputs after completing independent work.
+- User update (2026-10-31): local CLI launches and migration administration may
+  load the scraper-root `.env` automatically through the dedicated environment
+  bootstrap. Never display/dump its contents, credentials or environment mapping.
+  Do not manually inspect secret files or search parent folders for them. Process
+  variables take precedence; explicitly injected mappings bypass file loading.
+  Test database fixtures still require process TEST_DATABASE_URL and must never
+  obtain a database target from `.env` or fall back to production DATABASE_URL.
 - Keep all file operations inside this scraper project. Use root `Temp/` for
   temporary files, downloads and caches, and clean task-created files afterward.
   Keep installed runtimes/virtual environments in ignored local directories.

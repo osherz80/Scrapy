@@ -9,12 +9,11 @@ from psycopg import sql
 def seed_run(db):
     run_id = uuid4()
     db.execute(
-        "INSERT INTO supermarket.refresh_runs(id, origin, requested_chains) "
-        "VALUES (%s, 'MANUAL', %s)",
+        "INSERT INTO public.refresh_runs(id, origin, requested_chains) VALUES (%s, 'MANUAL', %s)",
         (run_id, ["rami-levy"]),
     )
     db.execute(
-        "INSERT INTO supermarket.refresh_run_chains(run_id, chain_id) VALUES (%s, 'rami-levy')",
+        "INSERT INTO public.refresh_run_chains(run_id, chain_id) VALUES (%s, 'rami-levy')",
         (run_id,),
     )
     return run_id
@@ -22,7 +21,7 @@ def seed_run(db):
 
 def insert_product(db, run_id, *, code="001234", price="10.9000", sample_count=1):
     db.execute(
-        """INSERT INTO supermarket.products(
+        """INSERT INTO public.products(
         chain_id, item_code, name, price, is_weighted, sample_count, source_updated_at,
         newest_source_updated_at, run_id, normalized_name, name_tokens
     ) VALUES ('rami-levy', %s, 'Example', %s, false, %s, now(), now(), %s, 'example', %s)""",
@@ -31,7 +30,7 @@ def insert_product(db, run_id, *, code="001234", price="10.9000", sample_count=1
 
 
 def test_six_domain_tables_and_ten_chains_are_seeded_with_two_deferred(db):
-    tables = db.execute("SELECT tablename FROM pg_tables WHERE schemaname='supermarket'").fetchall()
+    tables = db.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'").fetchall()
     assert {row[0] for row in tables} == {
         "chains",
         "products",
@@ -40,7 +39,7 @@ def test_six_domain_tables_and_ten_chains_are_seeded_with_two_deferred(db):
         "chain_leases",
         "schedule_claims",
     }
-    chains = db.execute("SELECT id, enabled FROM supermarket.chains").fetchall()
+    chains = db.execute("SELECT id, enabled FROM public.chains").fetchall()
     assert len(chains) == 10
     assert {name for name, enabled in chains if not enabled} == {"carrefour", "shufersal"}
 
@@ -49,13 +48,14 @@ def test_exact_codes_preserve_leading_zeros_and_required_indexes_exist(db):
     run_id = seed_run(db)
     insert_product(db, run_id, code="001")
     insert_product(db, run_id, code="1")
-    assert db.execute(
-        "SELECT item_code FROM supermarket.products ORDER BY item_code"
-    ).fetchall() == [("001",), ("1",)]
+    assert db.execute("SELECT item_code FROM public.products ORDER BY item_code").fetchall() == [
+        ("001",),
+        ("1",),
+    ]
     indexes = dict(
         db.execute(
             "SELECT indexname,indexdef FROM pg_indexes "
-            "WHERE schemaname='supermarket' AND tablename='products'"
+            "WHERE schemaname='public' AND tablename='products'"
         ).fetchall()
     )
     assert "USING gin" in indexes["products_name_tokens_idx"]
@@ -83,8 +83,8 @@ def test_current_products_prevent_pruning_their_publication_run(db):
     insert_product(db, run_id)
     with pytest.raises(psycopg.errors.ForeignKeyViolation):
         with db.transaction():
-            db.execute("DELETE FROM supermarket.refresh_runs WHERE id=%s", (run_id,))
-    assert db.execute("SELECT count(*) FROM supermarket.products").fetchone()[0] == 1
+            db.execute("DELETE FROM public.refresh_runs WHERE id=%s", (run_id,))
+    assert db.execute("SELECT count(*) FROM public.products").fetchone()[0] == 1
 
 
 @pytest.mark.parametrize(
@@ -95,7 +95,7 @@ def test_runtime_roles_cannot_create_schema_objects_or_escalate(db, role):
     assert db.execute("SELECT current_user").fetchone()[0] == role
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         with db.transaction():
-            db.execute("CREATE TABLE supermarket.unauthorized(id integer)")
+            db.execute("CREATE TABLE public.unauthorized(id integer)")
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         with db.transaction():
             db.execute("CREATE ROLE unauthorized LOGIN SUPERUSER")
@@ -104,8 +104,8 @@ def test_runtime_roles_cannot_create_schema_objects_or_escalate(db, role):
 def test_search_role_can_only_read_catalogs(db):
     insert_product(db, seed_run(db))
     db.execute("SET LOCAL ROLE supermarket_search")
-    assert db.execute("SELECT count(*) FROM supermarket.products").fetchone()[0] == 1
-    for statement in ("DELETE FROM supermarket.products", "SELECT * FROM supermarket.refresh_runs"):
+    assert db.execute("SELECT count(*) FROM public.products").fetchone()[0] == 1
+    for statement in ("DELETE FROM public.products", "SELECT * FROM public.refresh_runs"):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             with db.transaction():
                 db.execute(statement)
@@ -114,16 +114,17 @@ def test_search_role_can_only_read_catalogs(db):
 def test_control_role_cannot_read_or_write_catalog_prices(db):
     seed_run(db)
     db.execute("SET LOCAL ROLE supermarket_control")
-    assert db.execute("SELECT count(*) FROM supermarket.refresh_runs").fetchone()[0] == 1
-    for statement in ("SELECT * FROM supermarket.products", "DELETE FROM supermarket.products"):
+    assert db.execute("SELECT count(*) FROM public.refresh_runs").fetchone()[0] == 1
+    for statement in ("SELECT * FROM public.products", "DELETE FROM public.products"):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             with db.transaction():
                 db.execute(statement)
 
 
-def test_public_has_no_schema_usage(db):
-    privileges = db.execute("""SELECT privilege_type FROM pg_namespace,
-        LATERAL aclexplode(nspacl) WHERE nspname='supermarket' AND grantee=0""").fetchall()
+def test_public_has_no_table_privileges(db):
+    privileges = db.execute("""SELECT privilege_type FROM pg_class,
+        LATERAL aclexplode(relacl)
+        WHERE oid='public.products'::regclass AND grantee=0""").fetchall()
     assert privileges == []
 
 
@@ -131,10 +132,10 @@ def test_writer_can_publish_rows_but_cannot_change_enabled_chains_or_truncate(db
     run_id = seed_run(db)
     db.execute("SET LOCAL ROLE supermarket_ingestor")
     insert_product(db, run_id)
-    db.execute("UPDATE supermarket.chains SET product_count=1 WHERE id='rami-levy'")
+    db.execute("UPDATE public.chains SET product_count=1 WHERE id='rami-levy'")
     for statement in (
-        "UPDATE supermarket.chains SET enabled=true",
-        "TRUNCATE supermarket.products",
+        "UPDATE public.chains SET enabled=true",
+        "TRUNCATE public.products",
     ):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             with db.transaction():
@@ -147,7 +148,7 @@ def test_control_admission_rejects_invalid_chain_sets_at_the_database_boundary(d
     with pytest.raises(psycopg.errors.CheckViolation):
         with db.transaction():
             db.execute(
-                """INSERT INTO supermarket.refresh_runs(id,origin,requested_chains)
+                """INSERT INTO public.refresh_runs(id,origin,requested_chains)
                 VALUES (%s,'MANUAL',%s)""",
                 (uuid4(), chains),
             )
@@ -158,7 +159,7 @@ def test_package_columns_cannot_mix_unknown_and_known_conversion_pairs(db):
     insert_product(db, run_id)
     with pytest.raises(psycopg.errors.CheckViolation):
         with db.transaction():
-            db.execute("UPDATE supermarket.products SET source_quantity=60, source_unit_qty='ml'")
+            db.execute("UPDATE public.products SET source_quantity=60, source_unit_qty='ml'")
 
 
 def test_supabase_style_anonymous_default_grants_are_removed(unmigrated_db):
@@ -173,10 +174,8 @@ def test_supabase_style_anonymous_default_grants_are_removed(unmigrated_db):
     db.execute("""ALTER DEFAULT PRIVILEGES IN SCHEMA supermarket
         GRANT ALL ON TABLES TO anon, authenticated""")
     db.execute((root / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8"))
+    db.execute((root / "db/migrations/002_public_schema.sql").read_text(encoding="utf-8"))
     for role in ("anon", "authenticated"):
         assert not db.execute(
-            "SELECT has_schema_privilege(%s,'supermarket','USAGE')", (role,)
-        ).fetchone()[0]
-        assert not db.execute(
-            "SELECT has_table_privilege(%s,'supermarket.products','SELECT')", (role,)
+            "SELECT has_table_privilege(%s,'public.products','SELECT')", (role,)
         ).fetchone()[0]

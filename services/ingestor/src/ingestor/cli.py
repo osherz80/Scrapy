@@ -1,7 +1,6 @@
 """CLI composition root. Collection is enabled only after its implementation gates."""
 
 import argparse
-import os
 import re
 import signal
 from collections.abc import Mapping, Sequence
@@ -10,6 +9,7 @@ from uuid import UUID
 
 from .chains import CHAINS
 from .config import ConfigurationError, load_settings
+from .environment import EnvironmentFileError, load_environment
 from .logging import create_logger
 from .logging.types import Transport
 from .providers.published import PublishedProvider
@@ -69,15 +69,16 @@ def main(
 ) -> int:
     args = _parser().parse_args(argv)
     try:
+        process = load_environment(env)
         settings = load_settings(
-            env,
+            process,
             require_database=args.command in ("refresh", "scheduled")
             or getattr(args, "require_database", False),
         )
         chains = getattr(args, "chains", None) or settings.enabled_chains
         if any(chain not in settings.enabled_chains for chain in chains):
             raise ConfigurationError("Requested chains must be enabled in ENABLED_CHAINS")
-    except ConfigurationError as error:
+    except (ConfigurationError, EnvironmentFileError) as error:
         logger = create_logger(transport=transport)
         try:
             logger.error("configuration.invalid", str(error))
@@ -104,7 +105,6 @@ def main(
 
             return run_probe(chains, settings, logger, max_branches=args.max_branches)
         if args.command in ("refresh", "scheduled"):
-            process = os.environ if env is None else env
             execution_id = process.get("GITHUB_RUN_ID", "")
             attempt = process.get("GITHUB_RUN_ATTEMPT", "1")
             if not re.fullmatch(r"[0-9]{1,30}", execution_id) or not re.fullmatch(
