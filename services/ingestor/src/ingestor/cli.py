@@ -56,6 +56,10 @@ def _parser() -> argparse.ArgumentParser:
     probe = commands.add_parser("probe", help="Run a bounded provider feasibility probe")
     probe.add_argument("--chains", type=_chains)
     probe.add_argument("--max-branches", type=_branches, default=1)
+    pilot = commands.add_parser(
+        "pilot", help="Validate production collection without database writes"
+    )
+    pilot.add_argument("--chains", type=_chains)
     return parser
 
 
@@ -104,6 +108,10 @@ def main(
             from .providers.trial import run_probe
 
             return run_probe(chains, settings, logger, max_branches=args.max_branches)
+        if args.command == "pilot":
+            from .pilot import run_pilot
+
+            return run_pilot(chains, settings, logger, provider_factory or PublishedProvider)
         if args.command in ("refresh", "scheduled"):
             execution_id = process.get("GITHUB_RUN_ID", "")
             attempt = process.get("GITHUB_RUN_ATTEMPT", "1")

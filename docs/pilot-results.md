@@ -1,0 +1,38 @@
+# Controlled pilot evidence
+
+## Procedure
+
+The `pilot` command runs PublishedProvider, complete roster/catalog discovery,
+full secure XML parsing, the existing three-branch sampling/replacement policy,
+and aggregation. It does not create database connections, admit refresh runs,
+publish products, or save raw catalogs. All eight active chains are selected by
+default; Carrefour and Shufersal remain excluded. Logs contain counts and static
+failure codes. A partial/failed pilot exits 1; all chains must produce publishable
+aggregates to exit 0. The global execution budget is 45 minutes by default;
+individual request/size limits remain unchanged.
+
+Local execution from the repository root:
+
+```powershell
+& .venv312/Scripts/python.exe -m ingestor.cli pilot
+```
+
+Hosted execution: manually dispatch Scraper CI on the feature branch with
+`source_pilot=true`. The source job runs only after verification succeeds and
+receives no database secrets. Push/PR verification never accesses retailer sources.
+Refresh workflow also supports `mode=pilot` once registered on the default branch.
+
+Inspect `pilot.chain_completed`, `pilot.chain_failed` and `pilot.finished` JSON
+events. Linux reports process peak RSS in bytes; the final event reports elapsed
+milliseconds and coverage. No artifact contains raw product data. Workflow runtime
+and RSS are evidence for this source-only process, not a completed publication or
+database capacity measurement.
+
+## Evidence status
+
+- Local unit suite: 357 passed after pilot implementation.
+- Existing public-schema integration coverage: 117 cases, including preserved
+  data on 001→002 upgrade, permission boundaries, concurrency and rollback.
+- Supabase migrations 001/002 applied and verified using the supplied CA and
+  direct DATABASE_URL. No products have been published by the pilot.
+- Hosted pilot results and production publication/capacity evidence remain pending.

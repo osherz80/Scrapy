@@ -116,3 +116,11 @@ workflow/Python quality checks, isolated PostgreSQL startup, 454 tests, package
 build and container cleanup. The Linux suite used Python 3.12.16 and completed in
 11.65 seconds. This verifies CI infrastructure and fixture-backed behavior; it
 does not demonstrate retailer reachability from that runner or a Supabase refresh.
+
+## Source-only production pilot
+
+Manually dispatch Scraper CI with `source_pilot=true` on the selected branch.
+The pilot job waits for verification, then runs the same production collection
+path as refresh without receiving database credentials or publishing data. It
+never runs on push or pull requests. Refresh also accepts `mode=pilot` once its
+workflow is registered. See [pilot procedure and evidence](pilot-results.md).

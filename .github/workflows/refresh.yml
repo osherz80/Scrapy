@@ -11,6 +11,7 @@ on:
         options:
           - refresh
           - probe
+          - pilot
         default: refresh
         required: true
       run_id:
@@ -45,7 +46,7 @@ jobs:
         shell: bash
         run: |
           case "$GITHUB_EVENT_NAME:$RUN_MODE" in
-            schedule:scheduled|workflow_dispatch:probe) ;;
+            schedule:scheduled|workflow_dispatch:probe|workflow_dispatch:pilot) ;;
             workflow_dispatch:refresh)
               if [[ -z "$AUTHORIZED_RUN_ID" ]]; then
                 echo 'Refresh requires an admitted database run UUID' >&2
@@ -58,6 +59,9 @@ jobs:
       - name: Bounded source diagnostic
         if: env.RUN_MODE == 'probe'
         run: .venv312/bin/python -m ingestor.cli probe --max-branches 1
+      - name: Production collection pilot without database access
+        if: env.RUN_MODE == 'pilot'
+        run: .venv312/bin/python -m ingestor.cli pilot
       - name: Refresh authorized or scheduled run
         if: env.RUN_MODE == 'refresh' || env.RUN_MODE == 'scheduled'
         env:

@@ -293,3 +293,8 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 ## Public schema correction (2026-10-31)
 - [x] Preserve migration 001 checksums; migration 002 moves tables/function/history into public, removes legacy schema and retains data/ACLs. All runtime SQL updated.
 - [x] Verification: 469 tests passed in full run; corrected schema fixture then 23 schema tests passed; 10 migration tests passed including upgrade preservation, rollback and idempotency. Ruff/build verified. Supabase migration 002 applied and checked directly.
+
+## Production collection pilot command
+- [x] Add source-only production path with existing sampling, parser, aggregation and limits; static per-chain outcomes and Linux RSS/runtime metrics. No database connection or persistence.
+- [x] Four focused cases cover CLI wiring/no DB access, cleanup/failure continuation, deadline and deferred-source rejection. All 357 local unit tests, Ruff, actionlint and build pass.
+- [x] Add opt-in manual CI pilot after verification so feature-branch source evidence can be collected without merging/deploying refresh. Hosted results pending.

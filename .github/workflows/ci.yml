@@ -3,9 +3,36 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      source_pilot:
+        description: Run the production source-only pilot after verification (no database access)
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
+  source-pilot:
+    if: github.event_name == 'workflow_dispatch' && inputs.source_pilot
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TEMP: ${{ github.workspace }}/Temp
+      TMP: ${{ github.workspace }}/Temp
+      TMPDIR: ${{ github.workspace }}/Temp
+      UV_CACHE_DIR: ${{ github.workspace }}/Temp/uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.runtime/python
+      UV_PYTHON_BIN_DIR: ${{ github.workspace }}/.runtime/bin
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv312
+      LOG_ENV: pilot
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ingestor
+      - name: Production collection without database access
+        run: .venv312/bin/python -m ingestor.cli pilot
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
