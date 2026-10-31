@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from .chains import DEFERRED_CHAIN_IDS
 from .models import ParsedCatalog, ProductObservation
 from .providers.stream import SourceError
-from .providers.types import BranchIdentity
+from .providers.types import BranchIdentity, identifier_key
 from .timestamps import source_timestamp
 from .xml_catalog import iter_price_items
 
@@ -93,10 +93,14 @@ def parse_catalog(
         products[row.item_code] = row
     if not all(headers.get(key) for key in ("chainid", "subchainid", "storeid")):
         raise SourceError("MISSING_IDENTITY")
-    if (headers["chainid"], headers["subchainid"], headers["storeid"]) != (
+    if (
+        headers["chainid"],
+        identifier_key(headers["subchainid"]),
+        identifier_key(headers["storeid"]),
+    ) != (
         expected_source_chain_id,
-        branch.subchain_id,
-        branch.store_id,
+        identifier_key(branch.subchain_id),
+        identifier_key(branch.store_id),
     ):
         raise SourceError("IDENTITY_MISMATCH")
     if not products:

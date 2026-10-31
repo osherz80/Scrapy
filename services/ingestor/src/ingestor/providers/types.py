@@ -7,6 +7,11 @@ from enum import StrEnum
 from typing import Protocol
 
 
+def identifier_key(value: str) -> str:
+    """Numeric branch-ID padding is representation; never use for product codes."""
+    return (value.lstrip("0") or "0") if value.isascii() and value.isdecimal() else value
+
+
 class BranchKind(StrEnum):
     PHYSICAL_GROCERY = "physical_grocery"
     ONLINE_ONLY = "online_only"
