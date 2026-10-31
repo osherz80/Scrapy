@@ -245,9 +245,15 @@ lint/format and sdist/wheel build passed on Python 3.12.16.
 ## 19. CI and refresh workflows
 Dependencies: 17, 18. Scope: medium.
 Files: `.github/workflows/{ci,refresh}.yml`, `docs/github-actions.md`.
-- [ ] Pinned runtime/dependency lock, minimum permissions, 45-minute job, manual runId handoff and two cron candidates; no global cancellation.
-- [ ] Opt-in probe mode, secret injection only through process env, no raw artifacts; CI runs offline suite and disposable PostgreSQL integration.
+- [x] Pinned runtime/dependency lock, contents-read permission, 45-minute refresh job, manual runId handoff and native 06:00 Asia/Jerusalem cron; no global cancellation.
+- [x] Opt-in probe mode without DB secret, DATABASE_URL injected only into the refresh step, no raw artifacts; CI uses a loopback disposable PostgreSQL container with project-local data and no production credentials.
 - [ ] Verification: workflow syntax/security inspection and actual CI run when repository access is available.
+
+Actionlint 1.7.12 validates both workflows locally. Checkout is pinned to its
+verified full v6 commit; uv/actionlint archives and PostgreSQL 18.3 image are
+checksum/digest pinned. Runtime/caches stay in workspace directories; managed
+Python installation disables shims/registration. All 454 application tests pass
+locally. Hosted push-triggered CI verification is pending the workflow push.
 
 ## Checkpoint: operational wiring
 - [ ] Offline/DB gates pass and workflows validated; hosted source reachability is still separate.

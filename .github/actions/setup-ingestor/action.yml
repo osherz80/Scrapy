@@ -1,0 +1,38 @@
+name: Set up ingestor
+description: Install checksum-pinned tooling and locked dependencies inside the workspace
+inputs:
+  development:
+    description: Install developer tools and actionlint
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Install pinned tools and Python
+      shell: bash
+      env:
+        INSTALL_DEVELOPMENT: ${{ inputs.development }}
+      run: |
+        set -euo pipefail
+        mkdir -p Temp/bin
+        curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+          https://github.com/astral-sh/uv/releases/download/0.13.6/uv-x86_64-unknown-linux-gnu.tar.gz \
+          --output Temp/uv.tar.gz
+        echo 'f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645  Temp/uv.tar.gz' | sha256sum --check
+        tar --extract --gzip --file Temp/uv.tar.gz --directory Temp/bin --strip-components=1 --no-same-owner
+        rm --force Temp/uv.tar.gz
+        Temp/bin/uv python install 3.12.16 --no-bin --no-registry
+        args=(sync --project services/ingestor --locked --python 3.12.16 --no-python-downloads --extra probe)
+        case "$INSTALL_DEVELOPMENT" in
+          true)
+            args+=(--extra dev)
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+              https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+              --output Temp/actionlint.tar.gz
+            echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  Temp/actionlint.tar.gz' | sha256sum --check
+            tar --extract --gzip --file Temp/actionlint.tar.gz --directory Temp/bin --no-same-owner actionlint
+            rm --force Temp/actionlint.tar.gz
+            ;;
+          false) ;;
+          *) echo 'Invalid setup mode' >&2; exit 2 ;;
+        esac
+        Temp/bin/uv "${args[@]}"

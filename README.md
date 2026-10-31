@@ -33,7 +33,7 @@ delete task-created contents of `Temp/` after verification. Runtime and virtual
 environment directories remain ignored and local. On Linux use `.venv312/bin/python`.
 
 Collection and database coordination are implemented and verified locally.
-Source roster mapping is locally verified for eight chains. Hosted workflows remain gates;
+Source roster mapping is locally verified for eight chains. Hosted source/capacity checks remain gates;
 operational readiness must not be inferred from fixture/bootstrap tests.
 
 ## Logging boundary
@@ -62,7 +62,7 @@ contained; shutdown flush waits at most its configured budget (capped at five
 seconds). A stalled flush runs in a daemon thread and cannot block process exit.
 
 There is no centralized logging storage, dashboard or automatic alert delivery.
-Future Actions logs use repository retention; database run records already supply
+Actions logs use repository retention; database run records already supply
 durable operational status independently of the console transport.
 
 ## Configuration and CLI
@@ -200,3 +200,16 @@ remain launch work; admission, fencing, publication and recovery are implemented
 Environment files are never loaded automatically. Supply settings through the
 launching process or hosted secret injection. Invalid-setting messages identify
 the variable without echoing its value; argument errors also withhold raw input.
+
+## GitHub Actions
+
+[Workflow operation and setup](docs/github-actions.md) explains daily 06:00 Israel
+refreshes, authorized manual run IDs, source-only probes and CI isolation. Add
+the repository secret `DATABASE_URL`; no `.env` file is used or uploaded. CI
+receives only a disposable local test database, never the production secret.
+Refresh jobs are capped at 45 minutes and do not cancel unrelated runs.
+
+The production schema must be explicitly migrated before the first refresh.
+Schedules activate from the default branch after review/merge; pushing a feature
+branch runs CI without activating that branch's cron. Workflows never apply
+production migrations automatically. Supabase has not been changed by development.

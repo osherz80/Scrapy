@@ -1,0 +1,71 @@
+name: Supermarket refresh
+on:
+  schedule:
+    - cron: '0 6 * * *'
+      timezone: Asia/Jerusalem
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Refresh an admitted run, or run a source-only diagnostic
+        type: choice
+        options:
+          - refresh
+          - probe
+        default: refresh
+        required: true
+      run_id:
+        description: Authorized database run UUID, required for refresh
+        type: string
+        required: false
+permissions:
+  contents: read
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TEMP: ${{ github.workspace }}/Temp
+      TMP: ${{ github.workspace }}/Temp
+      TMPDIR: ${{ github.workspace }}/Temp
+      UV_CACHE_DIR: ${{ github.workspace }}/Temp/uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.runtime/python
+      UV_PYTHON_BIN_DIR: ${{ github.workspace }}/.runtime/bin
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv312
+      LOG_ENV: production
+      LOG_PROVIDER: console
+      LOG_LEVEL: info
+      RUN_MODE: ${{ github.event_name == 'schedule' && 'scheduled' || inputs.mode }}
+      AUTHORIZED_RUN_ID: ${{ inputs.run_id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate invocation
+        shell: bash
+        run: |
+          case "$GITHUB_EVENT_NAME:$RUN_MODE" in
+            schedule:scheduled|workflow_dispatch:probe) ;;
+            workflow_dispatch:refresh)
+              if [[ -z "$AUTHORIZED_RUN_ID" ]]; then
+                echo 'Refresh requires an admitted database run UUID' >&2
+                exit 2
+              fi
+              ;;
+            *) echo 'Unsupported workflow mode' >&2; exit 2 ;;
+          esac
+      - uses: ./.github/actions/setup-ingestor
+      - name: Bounded source diagnostic
+        if: env.RUN_MODE == 'probe'
+        run: .venv312/bin/python -m ingestor.cli probe --max-branches 1
+      - name: Refresh authorized or scheduled run
+        if: env.RUN_MODE == 'refresh' || env.RUN_MODE == 'scheduled'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        shell: bash
+        run: |
+          case "$RUN_MODE" in
+            scheduled) exec .venv312/bin/python -m ingestor.cli scheduled ;;
+            refresh) exec .venv312/bin/python -m ingestor.cli refresh --run-id "$AUTHORIZED_RUN_ID" ;;
+            *) exit 2 ;;
+          esac
