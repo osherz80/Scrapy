@@ -53,25 +53,27 @@ Local recovery evidence: Carrefour's Stores file did not reveal aliases for the 
 ## 6. Provider adapter contract
 Dependencies: 5. Scope: medium.
 Files: `providers/types.py`, `providers/selected.py`, `tests/unit/test_provider.py`, `docs/provider-evidence.md`.
-- [ ] Typed composite branch IDs, physical-branch eligibility, pagination and latest exact PriceFull selection have verified mappings.
-- [ ] No hidden retries, arbitrary workflow URLs, online/pharmacy-only branches or unverified support claims.
-- [ ] Verification: pagination/type/identity/eligibility/timestamp fixture cases against selected adapter.
+- [x] Typed composite branch IDs, physical-branch eligibility, pagination and latest exact PriceFull selection have verified mappings for the eight active sources.
+- [x] No hidden retries or arbitrary workflow URLs; online-only/unknown classifications excluded. Only the eight specified grocery publishers are implemented; deferred sources fail before client creation.
+- [x] Verification: strict roster/filename fixtures, explicit aliases/padding checks, three portal-family HTTP fixtures, completeness failures, unique composite mapping and download allowlisting. Bounded local inventories and three fully parsed/reconciled physical branches per active chain passed; see `docs/roster-mapping.md`. Hosted support is unverified.
 
 Implemented: provider-independent immutable contracts, explicit branch-kind
 classification, complete-inventory latest PriceFull selection, fail-closed
 pagination and missing-time candidates, plus 11 focused contract tests. Actual
-publisher Stores/filename mapping to these contracts remains open; unknown branch
-types are excluded rather than guessed as physical. No complete adapter claim yet.
+publisher Stores/filename mapping is now implemented in `providers/published.py`
+and `roster.py`; unknown branch types are excluded rather than guessed. The SDK
+remains diagnostic-only because its listing/retry behavior cannot enforce the
+production boundary; the audited portal protocols use our bounded HTTP directly.
 
 ## 7. Bounded in-memory download
 Dependencies: 6. Scope: medium.
 Files: `providers/stream.py`, `tests/unit/test_stream.py`, `tests/fixtures/stream_cases.py`.
-- [ ] Timeout 60s, decompressed limit 100 MB, corrupt archives and truncation fail whole attempts; no raw disk/cache writes.
-- [ ] One streaming branch at a time; HTTP retry behavior stays inside application attempt budget.
-- [ ] Verification: generated gzip/bomb/corrupt/timeout cases and forbidden-write tests.
+- [x] Timeout 60s, decompressed limit 100 MB, corrupt archives and truncation fail whole attempts; no raw disk/cache writes.
+- [x] One streaming branch at a time; HTTP retry behavior stays inside application attempt budget.
+- [x] Verification: existing gzip/bomb/corrupt/truncation/HTTP timeout/stream limits, new forbidden-write provider test, no retry/re-login path, plus local three-branch-per-source collection without raw artifacts.
 
 ## Checkpoint: source boundary
-- [ ] Adapter evidence recorded; limits and no-disk path proven before collection orchestration.
+- [x] Adapter evidence recorded; limits and no-disk path proven for eight active sources. Hosted reachability remains separate.
 
 ## 8. Strict catalog parsing
 Dependencies: 7. Scope: medium.
