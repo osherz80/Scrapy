@@ -1,0 +1,89 @@
+name: Scraper CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      source_pilot:
+        description: Run the production source-only pilot after verification (no database access)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  source-pilot:
+    if: github.event_name == 'workflow_dispatch' && inputs.source_pilot
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TEMP: ${{ github.workspace }}/Temp
+      TMP: ${{ github.workspace }}/Temp
+      TMPDIR: ${{ github.workspace }}/Temp
+      UV_CACHE_DIR: ${{ github.workspace }}/Temp/uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.runtime/python
+      UV_PYTHON_BIN_DIR: ${{ github.workspace }}/.runtime/bin
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv312
+      LOG_ENV: pilot
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ingestor
+      - name: Production collection without database access
+        run: .venv312/bin/python -m ingestor.cli pilot
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TEMP: ${{ github.workspace }}/Temp
+      TMP: ${{ github.workspace }}/Temp
+      TMPDIR: ${{ github.workspace }}/Temp
+      UV_CACHE_DIR: ${{ github.workspace }}/Temp/uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.runtime/python
+      UV_PYTHON_BIN_DIR: ${{ github.workspace }}/.runtime/bin
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/.venv312
+      PGPASSFILE: ${{ github.workspace }}/Temp/disabled-passfile
+      TEST_DATABASE_URL: postgresql://ingestor_test_admin@127.0.0.1:55439/ingestor_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ingestor
+        with:
+          development: 'true'
+      - name: Workflow and Python quality checks
+        run: |
+          Temp/bin/actionlint -color
+          .venv312/bin/python -m ruff check services/ingestor
+          .venv312/bin/python -m ruff format --check services/ingestor
+      - name: Start isolated PostgreSQL
+        run: |
+          mkdir -p Temp/pg-test
+          docker run --detach --name ingestor-test-db \
+            --publish 127.0.0.1:55439:5432 \
+            --env POSTGRES_USER=ingestor_test_admin \
+            --env POSTGRES_DB=ingestor_test \
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            --mount "type=bind,source=$PWD/Temp/pg-test,target=/var/lib/postgresql" \
+            postgres@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+          for (( attempt=0; attempt<30; attempt++ )); do
+            if docker exec ingestor-test-db pg_isready -h 127.0.0.1 -U ingestor_test_admin -d ingestor_test; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Disposable PostgreSQL did not become ready' >&2
+          exit 1
+      - name: Full offline and PostgreSQL suite
+        run: .venv312/bin/python -m pytest services/ingestor/tests --basetemp=Temp/pytest
+      - name: Build distribution
+        run: .venv312/bin/python -m build --no-isolation --outdir Temp/dist services/ingestor
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: |
+          if docker container inspect ingestor-test-db >/dev/null 2>&1; then
+            docker rm --force ingestor-test-db
+          fi
