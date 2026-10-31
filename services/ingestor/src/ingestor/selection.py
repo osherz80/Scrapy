@@ -10,6 +10,7 @@ from .chains import DEFERRED_CHAIN_IDS
 from .logging.types import Logger
 from .providers.stream import SourceError
 from .providers.types import BranchIdentity, BranchKind, CatalogCandidate
+from .runs.ownership import OwnershipError
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,8 @@ def collect_sample[T](
                     duration_ms=round((monotonic() - started) * 1000),
                 )
                 break
+            except OwnershipError:
+                raise
             except Exception as error:
                 failures += 1
                 code = str(error) if isinstance(error, SourceError) else "BRANCH_FAILED"

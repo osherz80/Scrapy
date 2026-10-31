@@ -1,6 +1,7 @@
 """Replace one current catalog and record its outcome under transactional fencing."""
 
 import json
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 from time import monotonic
@@ -128,12 +129,47 @@ def _check_lease(connection, owner, chain_id, started_at):
     return now
 
 
+def _lock_chain(connection, owner, chain_id):
+    run = connection.execute(
+        "SELECT status,requested_chains,started_at FROM supermarket.refresh_runs "
+        "WHERE id=%s FOR UPDATE",
+        (owner.run_id,),
+    ).fetchone()
+    if run is None or run[0] != "RUNNING" or tuple(sorted(run[1])) != owner.chains:
+        raise OwnershipError("LEASE_LOST")
+    state = connection.execute(
+        "SELECT status FROM supermarket.refresh_run_chains WHERE run_id=%s AND chain_id=%s "
+        "FOR UPDATE",
+        (owner.run_id, chain_id),
+    ).fetchone()
+    if state is None or chain_id not in owner.chains:
+        raise PublicationError("UNAUTHORIZED_CHAIN")
+    if state[0] not in ("PENDING", "RUNNING"):
+        raise PublicationError("CHAIN_ALREADY_FINISHED")
+    return run[2], _check_lease(connection, owner, chain_id, run[2])
+
+
+def start_chain(connection: psycopg.Connection, owner: RunOwnership, chain_id: str) -> None:
+    """Record actual collection start only while ownership is valid."""
+    if not connection.autocommit or connection.info.transaction_status != TransactionStatus.IDLE:
+        raise PublicationError("AUTOCOMMIT_CONNECTION_REQUIRED")
+    with connection.transaction():
+        _timeouts(connection)
+        _, now = _lock_chain(connection, owner, chain_id)
+        connection.execute(
+            "UPDATE supermarket.refresh_run_chains SET status='RUNNING',"
+            "started_at=coalesce(started_at,%s) WHERE run_id=%s AND chain_id=%s",
+            (now, owner.run_id, chain_id),
+        )
+
+
 def publish_collection(
     connection: psycopg.Connection,
     owner: RunOwnership,
     collection: ChainCollection,
     *,
     logger: Logger | None = None,
+    failure_code: str | None = None,
 ) -> bool:
     """Stage one chain in memory, then atomically replace or preserve its catalog.
 
@@ -153,26 +189,16 @@ def publish_collection(
             raise PublicationError("AUTOCOMMIT_CONNECTION_REQUIRED")
         if result.chain_id not in owner.chains:
             raise PublicationError("UNAUTHORIZED_CHAIN")
+        if failure_code is not None and (
+            result.can_publish
+            or not isinstance(failure_code, str)
+            or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", failure_code)
+        ):
+            raise PublicationError("INVALID_FAILURE_CODE")
         rows, sampled = _prepare(collection)
         with connection.transaction():
             _timeouts(connection)
-            run = connection.execute(
-                "SELECT status,requested_chains,started_at FROM supermarket.refresh_runs "
-                "WHERE id=%s FOR UPDATE",
-                (owner.run_id,),
-            ).fetchone()
-            if run is None or run[0] != "RUNNING" or tuple(sorted(run[1])) != owner.chains:
-                raise OwnershipError("LEASE_LOST")
-            state = connection.execute(
-                "SELECT status FROM supermarket.refresh_run_chains WHERE run_id=%s AND chain_id=%s "
-                "FOR UPDATE",
-                (owner.run_id, result.chain_id),
-            ).fetchone()
-            if state is None:
-                raise PublicationError("UNAUTHORIZED_CHAIN")
-            if state[0] not in ("PENDING", "RUNNING"):
-                raise PublicationError("CHAIN_ALREADY_FINISHED")
-            now = _check_lease(connection, owner, result.chain_id, run[2])
+            run_started_at, now = _lock_chain(connection, owner, result.chain_id)
             if result.can_publish:
                 connection.execute(
                     "DELETE FROM supermarket.products WHERE chain_id=%s", (result.chain_id,)
@@ -196,9 +222,12 @@ def publish_collection(
                 None
                 if result.can_publish
                 else (
-                    "NO_SUCCESSFUL_BRANCHES"
-                    if not result.successful_branch_count
-                    else "NO_PUBLISHABLE_PRODUCTS"
+                    failure_code
+                    or (
+                        "NO_SUCCESSFUL_BRANCHES"
+                        if not result.successful_branch_count
+                        else "NO_PUBLISHABLE_PRODUCTS"
+                    )
                 )
             )
             connection.execute(
@@ -224,7 +253,7 @@ def publish_collection(
             )
             # Long insert batches or triggers may outlive the lease while holding
             # its lock. Recheck using current DB time before releasing ownership.
-            _check_lease(connection, owner, result.chain_id, run[2])
+            _check_lease(connection, owner, result.chain_id, run_started_at)
             connection.execute(
                 "DELETE FROM supermarket.chain_leases WHERE chain_id=%s AND run_id=%s",
                 (result.chain_id, owner.run_id),

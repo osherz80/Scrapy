@@ -1,6 +1,7 @@
 """Collect and reconcile one chain through injected, transport-independent boundaries."""
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from random import Random
 from time import monotonic
@@ -14,6 +15,7 @@ from .parsing import parse_catalog
 from .providers.selected import select_catalogs
 from .providers.stream import SourceError, decompress
 from .providers.types import BranchIdentity, CatalogCandidate, Provider
+from .runs.ownership import OwnershipError
 from .selection import collect_sample
 
 
@@ -32,6 +34,7 @@ def collect_chain(
     settings: Settings,
     logger: Logger,
     rng: Random | None = None,
+    check: Callable[[], None] | None = None,
 ) -> ChainCollection:
     """The caller owns provider lifetime. This function never writes to a database."""
     if chain_id in DEFERRED_CHAIN_IDS:
@@ -40,6 +43,8 @@ def collect_chain(
         raise SourceError("CHAIN_DISABLED")
     logger = logger.child(chain_id=chain_id)
     started = monotonic()
+    if check:
+        check()
     logger.info("inventory.started", "Reading complete source inventory")
     try:
         source_id = provider.source_chain_id
@@ -47,6 +52,8 @@ def collect_chain(
             raise SourceError("MISSING_IDENTITY")
         branches = provider.list_branches()
         candidates = select_catalogs(branches, provider.iter_files(), chain_id=chain_id)
+    except OwnershipError:
+        raise
     except Exception as error:
         code = str(error) if isinstance(error, SourceError) else "INVENTORY_FAILURE"
         if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", code):
@@ -66,9 +73,13 @@ def collect_chain(
         if ref is None:
             raise SourceError("MISSING_SOURCE_TIME")
         payload = provider.download(ref)
+        if check:
+            check()
         if len(payload) > settings.provider_max_decompressed_bytes:
             raise SourceError("SIZE_LIMIT")
         xml = decompress(payload, limit=settings.provider_max_decompressed_bytes)
+        if check:
+            check()
         catalog = parse_catalog(
             xml,
             branch=candidate.branch.identity,
@@ -76,6 +87,8 @@ def collect_chain(
             published_at=ref.published_at,
             max_bytes=settings.provider_max_decompressed_bytes,
         )
+        if check:
+            check()
         logger.child(branch_id=f"{ref.identity.subchain_id}/{ref.identity.store_id}").info(
             "catalog.parsed",
             "Full branch catalog validated",
@@ -88,11 +101,15 @@ def collect_chain(
         return catalog
 
     sample = collect_sample(candidates, collect, logger, rng=rng)
+    if check:
+        check()
     aggregation = aggregate_catalogs(
         tuple(success.catalog for success in sample.successful),
         chain_id=chain_id,
         logger=logger,
     )
+    if check:
+        check()
     return ChainCollection(
         aggregation,
         sample.attempted,

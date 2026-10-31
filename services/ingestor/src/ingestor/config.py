@@ -28,14 +28,17 @@ class Settings:
     app_version: str
 
 
-def _positive(env: Mapping[str, str], name: str, default: int) -> int:
+def _positive(
+    env: Mapping[str, str], name: str, default: int, *, maximum: int | None = None
+) -> int:
     try:
         value = int(env.get(name, str(default)))
-        if value <= 0:
+        if value <= 0 or (maximum is not None and value > maximum):
             raise ValueError
         return value
     except ValueError:
-        raise ConfigurationError(f"{name} must be a positive integer") from None
+        limit = f" no greater than {maximum}" if maximum is not None else ""
+        raise ConfigurationError(f"{name} must be a positive integer{limit}") from None
 
 
 def load_settings(
@@ -71,7 +74,7 @@ def load_settings(
     provider = env.get("LOG_PROVIDER", "console")
     if provider != "console":
         raise ConfigurationError("LOG_PROVIDER is unsupported; use console")
-    lease = _positive(env, "RUN_LEASE_SECONDS", 300)
+    lease = _positive(env, "RUN_LEASE_SECONDS", 300, maximum=300)
     heartbeat = _positive(env, "HEARTBEAT_SECONDS", 30)
     if heartbeat >= lease:
         raise ConfigurationError("HEARTBEAT_SECONDS must be less than RUN_LEASE_SECONDS")
@@ -84,7 +87,7 @@ def load_settings(
         ),
         refresh_stale_hours=_positive(env, "REFRESH_STALE_HOURS", 48),
         run_lease_seconds=lease,
-        run_timeout_minutes=_positive(env, "RUN_TIMEOUT_MINUTES", 45),
+        run_timeout_minutes=_positive(env, "RUN_TIMEOUT_MINUTES", 45, maximum=45),
         heartbeat_seconds=heartbeat,
         log_provider=provider,
         log_level=level,

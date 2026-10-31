@@ -1,13 +1,18 @@
 """CLI composition root. Collection is enabled only after its implementation gates."""
 
 import argparse
+import os
+import re
+import signal
 from collections.abc import Mapping, Sequence
+from threading import Event, current_thread, main_thread
 from uuid import UUID
 
 from .chains import CHAINS
 from .config import ConfigurationError, load_settings
 from .logging import create_logger
 from .logging.types import Transport
+from .runs.worker import ConnectionFactory, ProviderFactory, run_worker
 
 
 class _Parser(argparse.ArgumentParser):
@@ -56,6 +61,8 @@ def main(
     *,
     env: Mapping[str, str] | None = None,
     transport: Transport | None = None,
+    provider_factory: ProviderFactory | None = None,
+    connection_factory: ConnectionFactory | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -93,7 +100,43 @@ def main(
             from .providers.trial import run_probe
 
             return run_probe(chains, settings, logger, max_branches=args.max_branches)
-        logger.error("command.unavailable", "Collection command is not enabled yet")
+        if (
+            args.command == "refresh"
+            and provider_factory is not None
+            and connection_factory is not None
+        ):
+            process = os.environ if env is None else env
+            execution_id = process.get("GITHUB_RUN_ID", "")
+            attempt = process.get("GITHUB_RUN_ATTEMPT", "1")
+            if not re.fullmatch(r"[0-9]{1,30}", execution_id) or not re.fullmatch(
+                r"[0-9]{1,10}", attempt
+            ):
+                logger.error("configuration.invalid", "GitHub execution correlation is required")
+                return 2
+            cancelled = Event()
+            previous = None
+            if current_thread() is main_thread():
+                previous = signal.signal(signal.SIGTERM, lambda *_: cancelled.set())
+            try:
+                return run_worker(
+                    args.run_id,
+                    execution_id=f"{execution_id}:{attempt}",
+                    settings=settings,
+                    connection_factory=connection_factory,
+                    provider_factory=provider_factory,
+                    logger=logger,
+                    cancelled=cancelled,
+                )
+            finally:
+                if previous is not None:
+                    signal.signal(signal.SIGTERM, previous)
+        logger.error(
+            "command.unavailable",
+            "Collection command is not enabled yet",
+            error_code="SOURCE_MAPPING_UNVERIFIED"
+            if args.command == "refresh"
+            else "SCHEDULER_UNAVAILABLE",
+        )
         return 3
     finally:
         logger.flush()

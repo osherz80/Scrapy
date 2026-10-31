@@ -135,7 +135,8 @@ monotonic deadline or shutdown. Shutdown waits at most five seconds. The worker
 must provide a separate connection with bounded I/O for renewal, call the guard
 before more work, cancel/close in-flight work at teardown, and still verify the
 token in the publication transaction. Python threads cannot forcibly cancel
-blocked I/O. CLI worker wiring remains a later task.
+blocked I/O. Worker composition is implemented with injected factories; the
+standard CLI remains gated until the publisher roster factory is verified.
 
 ## Atomic chain publication
 
@@ -209,8 +210,41 @@ Real PostgreSQL tests cover pending/running expiry, partial publication recovery
 status/admission reconciliation, job deadlines, missing ownership, concurrent
 re-admission, recovery rollback with admission conflict, teardown ownership,
 current/active reference retention and the 100-record bound. These are repository
-functions; status endpoints and periodic maintenance invocation still need worker
-and workflow wiring. Supabase has not been accessed.
+functions; status endpoints and periodic scheduling still need external wiring.
+The worker runs one bounded retention pass after finalization; maintenance failure
+is logged without undoing the run. Supabase has not been accessed.
+
+## Worker composition
+
+`runs.worker.run_worker` takes explicit connection/provider factories and settings.
+It validates identity/timing before opening connections, atomically claims the
+run, reads authorized chain IDs from that claim, and opens a separate renewal
+connection. Each chain gets an actual start timestamp under locked ownership,
+then listing, sampling, parsing, reconciliation and fenced publication. No chain
+list, credentials or arbitrary source URLs are accepted as workflow arguments.
+
+Listing/factory errors are recorded as failed chain outcomes with static error
+codes; their branch counters remain zero when no complete collection result is
+available. Normal branch failures retain collection attempt counts. A later chain
+still runs after an ordinary source failure. Ownership errors propagate through
+the collection boundary immediately. Publication/DB failures stop the run.
+
+On cancellation, interruption, deadline or fatal failure, providers close and
+connection contexts unwind. Teardown opens a fresh connection and fails only
+unfinished chains still owned by that token; otherwise lease recovery is required.
+Published chains are preserved. Cleanup and retention errors are logged safely.
+Successful teardown is idempotent. The factories must enforce bounded I/O; the
+worker checks cancellation/deadlines between operations and cannot forcibly kill
+an arbitrary blocked provider call.
+
+The CLI's Python API permits explicit factory injection for integration tests,
+uses GitHub execution correlation, and installs/restores a cooperative SIGTERM
+handler on the main thread. Default command-line refresh remains disabled with
+SOURCE_MAPPING_UNVERIFIED; no production provider or database factory is selected
+implicitly. Real PostgreSQL tests cover complete fixture refresh, partial source
+failure, duplicate delivery, heartbeat SQL failure, cancellation, deadlines,
+publication failure, keyboard interruption and signal restoration. This is not
+evidence of live publisher roster correctness or hosted connectivity.
 
 ## Verification
 

@@ -207,8 +207,18 @@ Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 Dependencies: 4, 11, 16. Scope: medium.
 Files: `runs/worker.py`, `cli.py`, `tests/integration/test_worker.py`, `tests/unit/test_worker_failures.py`.
 - [ ] Refresh reads authorized chains from run UUID and wires listing -> selection -> full parse -> aggregate -> fenced publish with heartbeat.
-- [ ] Per-chain partial success, run outcomes, cancellation/timeout and structured sanitized counts/durations have explicit behavior.
-- [ ] Verification: fixture-backed end-to-end DB runs plus induced provider failure correlated through capture logger.
+- [x] Per-chain partial success, run outcomes, cancellation/timeout and structured sanitized counts/durations have explicit behavior.
+- [x] Verification: 12 fixture-backed PostgreSQL worker/CLI cases cover complete refresh, authorized chains, partial source failure, duplicate delivery, initial validation, heartbeat SQL failure, deadlines, cancellation, SIGTERM/keyboard interrupt, publication failure and cleanup. Eleven offline worker/CLI cases cover preflight without connection/secret echoes; startup also rejects limits beyond the repository's lease/job maxima.
+
+Worker library and explicitly injected CLI composition are implemented. Standard
+CLI refresh remains SOURCE_MAPPING_UNVERIFIED until task 6's real publisher roster
+factory is verified; no bypass flag or implicit database connection is added.
+This keeps the first task-17 checkbox open. Provider/database factories must bound
+I/O and honor deadlines; cooperative safe points do not forcibly cancel blocked
+calls. The hosted hard timeout remains task 19. No live refresh/Supabase operation
+has run. Next resolve source roster mapping before default CLI activation.
+Verification: 395 tests passed, including 110 real PostgreSQL cases. Ruff
+lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## 18. Israel daily schedule
 Dependencies: 13, 17. Scope: medium.

@@ -58,6 +58,14 @@ def test_heartbeat_must_fit_inside_lease():
         load_settings({"RUN_LEASE_SECONDS": "30"})
 
 
+@pytest.mark.parametrize(
+    "name,value", [("RUN_LEASE_SECONDS", "301"), ("RUN_TIMEOUT_MINUTES", "46")]
+)
+def test_startup_rejects_limits_the_worker_cannot_honor(name, value):
+    with pytest.raises(ConfigurationError, match=name):
+        load_settings({name: value})
+
+
 @pytest.mark.parametrize("value", ["", "unknown", "shufersal,shufersal"])
 def test_enabled_chains_reject_empty_unknown_and_duplicate_ids(value):
     with pytest.raises(ConfigurationError, match="ENABLED_CHAINS"):

@@ -32,8 +32,9 @@ to reject unexpected dependency changes. Build output and tool caches are tempor
 delete task-created contents of `Temp/` after verification. Runtime and virtual
 environment directories remain ignored and local. On Linux use `.venv312/bin/python`.
 
-Collection, database migrations, and hosted workflows are subsequent plan tasks.
-Their existence or operational readiness must not be inferred from bootstrap tests.
+Collection and database coordination are implemented and verified locally.
+Live source roster mapping and hosted workflows remain implementation gates;
+operational readiness must not be inferred from fixture/bootstrap tests.
 
 ## Logging boundary
 
@@ -61,8 +62,8 @@ contained; shutdown flush waits at most its configured budget (capped at five
 seconds). A stalled flush runs in a daemon thread and cannot block process exit.
 
 There is no centralized logging storage, dashboard or automatic alert delivery.
-Future Actions logs use repository retention; database run records will supply
-durable operational status when that slice is implemented.
+Future Actions logs use repository retention; database run records already supply
+durable operational status independently of the console transport.
 
 ## Configuration and CLI
 
@@ -70,9 +71,11 @@ durable operational status when that slice is implemented.
 `python -m ingestor.cli check-config` validates process settings only;
 add `--require-database` to require a PostgreSQL URL. It does not test connectivity,
 TLS, schema, privileges or source reachability. Exit codes: 0 valid, 2 invalid
-configuration/arguments, 3 collection command not enabled. `refresh` and
-`scheduled` currently validate inputs then exit explicitly with code 3; neither
-publishes data or reports a successful refresh.
+configuration/arguments, 3 collection command not enabled. Standard `refresh`
+remains gated with SOURCE_MAPPING_UNVERIFIED until the live provider factory is
+verified; `scheduled` also remains unavailable. Neither default command connects
+or publishes. Tests inject explicit provider/connection factories into the Python
+CLI API to exercise an authorized refresh without adding a CLI bypass flag.
 
 ### Optional source feasibility probe
 
@@ -119,8 +122,8 @@ are not guessed. Publisher-specific metadata mapping is still being implemented.
 The sampling policy shuffles once using SystemRandom, then attempts three slots
 with at most two replacements each. Its collection callback must completely
 validate the catalog before returning; lazy, empty and failed results cannot
-contribute observations. This policy is unit-tested but is not yet wired to
-production parsing, aggregation or database publication.
+contribute observations. Fixture-backed worker tests now connect this policy to
+the production parser, aggregation and real PostgreSQL publication.
 
 The production parser and package normalizer are now implemented and tested
 independently; [catalog validation](docs/catalog-validation.md) documents their
@@ -129,8 +132,24 @@ The live probe remains a basic diagnostic and does not assert full production
 eligibility. Decimal reconciliation and the injected collection composition are
 also implemented: complete inventory -> sampling -> parse -> reconcile. Empty or
 fully conflicted results are explicitly nonpublishable. Backend name/token parity
-uses pinned JavaScript-generated fixtures. Publisher roster/eligibility mapping,
-the refresh worker and database publication are still open.
+uses pinned JavaScript-generated fixtures. Worker orchestration and atomic
+publication are implemented; publisher roster/eligibility mapping remains open.
+
+The worker claims a PENDING run once, reads its chain list from PostgreSQL,
+renews ownership on a dedicated connection, and collects/publishes chains
+sequentially. Per-chain source failure allows other chains to proceed. Lease
+loss, cancellation or deadline stops further work, closes providers/connections,
+and uses a fresh connection for best-effort teardown of unfinished chains.
+Completed publications survive teardown. Source attempts never swallow ownership
+errors as ordinary replacement failures. SIGTERM is cooperative; keyboard
+interrupts are handled, and the prior signal handler is restored.
+
+Factories must bound source/database I/O and honor the supplied monotonic
+deadline. Safe-point checks cannot forcibly interrupt blocked Python calls;
+the hosted hard timeout and expiry recovery remain necessary. Worker result codes
+are 0 success/duplicate skip, 1 failed/partial, 2 invalid preflight, 130 cancelled.
+The injected CLI requires GITHUB_RUN_ID and optional GITHUB_RUN_ATTEMPT (default 1).
+See [database behavior](docs/database.md) for publication, recovery and retention.
 
 ## Database schema and migrations
 
@@ -151,8 +170,8 @@ Rollback is explicit/destructive and requires the latest version; read the datab
 guide before using it. Ordinary pytest defaults to offline unit tests. Running the
 full `services/ingestor/tests` path requires `TEST_DATABASE_URL` for a disposable
 database named `ingestor_test...`; missing configuration fails rather than skips
-integration coverage. Runtime LOGIN provisioning, fencing/admission and publication
-remain separate implementation tasks.
+integration coverage. Runtime LOGIN provisioning and hosted TLS/capacity checks
+remain launch work; admission, fencing, publication and recovery are implemented.
 
 | Process variable | Default / requirement |
 |---|---|
@@ -161,8 +180,8 @@ remain separate implementation tasks.
 | PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
 | PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000, positive integer |
 | REFRESH_STALE_HOURS | 48, positive integer |
-| RUN_LEASE_SECONDS | 300, greater than heartbeat interval |
-| RUN_TIMEOUT_MINUTES | 45, positive integer |
+| RUN_LEASE_SECONDS | 300, maximum 300, greater than heartbeat interval |
+| RUN_TIMEOUT_MINUTES | 45, positive integer, maximum 45 |
 | HEARTBEAT_SECONDS | 30, positive integer smaller than lease TTL |
 | LOG_PROVIDER | console (only supported provider initially) |
 | LOG_LEVEL | info; debug/info/warn/error/fatal |
