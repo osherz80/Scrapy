@@ -135,3 +135,9 @@ Choose Supermarket refresh > Run workflow, keep mode=refresh and leave run_id
 empty. The runner creates/reserves the database run and immediately collects and
 publishes all enabled chains. The optional run_id is only for API-admitted runs.
 An overlapping active run fails admission safely; no operator UUID is needed.
+
+For passwords containing special characters, add repository secret
+DATABASE_PASSWORD with the exact password, unchanged. Leave DATABASE_URL as
+the Supabase session-pooler template (including [YOUR-PASSWORD]); the worker
+passes the separate password directly to the database driver. No manual URL
+encoding is needed. No additional workflow input is required.

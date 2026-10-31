@@ -50,3 +50,13 @@ worker. Session pooling preserves each client session needed by the worker.
 TLS certificate and hostname verification remain enabled.
 
 Source: https://supabase.com/docs/guides/database/connecting-to-postgres
+
+## Plain password without URL encoding
+
+Set DATABASE_PASSWORD to the exact database password. Do not encode characters
+or add quotes in GitHub Secrets. DATABASE_URL can remain the unmodified session
+pooler URI copied from Supabase, including [YOUR-PASSWORD], or omit its password
+entirely. The driver receives DATABASE_PASSWORD separately and unchanged; it
+overrides any embedded URL password. Existing complete URLs still work when the
+separate secret is absent. This applies to worker connections and migrations.
+Refresh injects the secret only into its database step, never probes or pilots.

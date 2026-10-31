@@ -5,6 +5,42 @@ import pytest
 from ingestor.repository.connection import DatabaseConnectionError, make_connection_factory
 
 
+@pytest.mark.parametrize("template", ["", ":[YOUR-PASSWORD]", ":old-password"])
+def test_raw_password_goes_directly_to_driver_without_uri_encoding(template, monkeypatch):
+    from psycopg.conninfo import conninfo_to_dict, make_conninfo
+
+    from ingestor.repository import connection
+
+    raw = "a@b:#%/ ?[]\\\"'\nעברית"
+    received = []
+    monkeypatch.setattr(connection.psycopg, "connect", lambda url, **kw: received.append((url, kw)))
+    factory = make_connection_factory(
+        f"postgresql://postgres.project{template}@pool.test:5432/postgres",
+        env={"DATABASE_PASSWORD": raw},
+    )
+    factory()
+    dsn, options = received[0]
+    assert options["password"] == raw
+    assert conninfo_to_dict(dsn)["user"] == "postgres.project"
+    assert "password" not in conninfo_to_dict(dsn)
+    assert conninfo_to_dict(make_conninfo(dsn, password=options["password"]))["password"] == raw
+    assert raw not in dsn and raw not in repr(factory)
+    assert options["sslmode"] == "verify-full"
+
+
+def test_settings_accept_supabase_template_with_separate_password():
+    from ingestor.config import load_settings
+
+    settings = load_settings(
+        {
+            "DATABASE_URL": "postgresql://postgres.project:[YOUR-PASSWORD]@pool.test:5432/postgres",
+            "DATABASE_PASSWORD": "literal@#%password",
+        },
+        require_database=True,
+    )
+    assert settings.database_url and "literal@#%password" not in repr(settings)
+
+
 def test_project_ca_certificate_is_used_without_weakening_verification(tmp_path, monkeypatch):
     from ingestor.repository import connection
 

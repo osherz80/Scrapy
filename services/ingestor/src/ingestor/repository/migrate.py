@@ -11,7 +11,12 @@ import psycopg
 
 from ..environment import EnvironmentFileError, load_environment
 from ..logging import create_logger
-from .connection import DatabaseConnectionError, connection_failure_diagnostic, connection_options
+from .connection import (
+    DatabaseConnectionError,
+    connection_dsn,
+    connection_failure_diagnostic,
+    connection_options,
+)
 
 _MIGRATION_NAME = re.compile(r"^(\d{3,})_[a-z0-9_]+\.sql$")
 
@@ -217,7 +222,7 @@ def main(argv: Sequence[str] | None = None, *, env: Mapping[str, str] | None = N
         root = Path.cwd().resolve()
         options = _connection_options(url, env, root)
         migrations = load_migrations(root)
-        with psycopg.connect(url, **options) as connection:
+        with psycopg.connect(connection_dsn(url, env), **options) as connection:
             if args.operation == "apply":
                 versions = apply_migrations(connection, migrations)
             elif args.operation == "rollback":
