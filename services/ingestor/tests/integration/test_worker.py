@@ -324,3 +324,21 @@ def test_cli_handles_sigterm_cooperatively_and_restores_previous_handler(harness
     )
     assert code == 130 and signal.getsignal(signal.SIGTERM) == before
     assert get_run_status(db, run.id).status == "FAILED"
+
+
+def test_default_cli_connection_factory_uses_database_url_for_real_worker(harness, monkeypatch):
+    from ingestor import cli
+
+    db, _, _ = harness
+    run = admit_run(db, ("victory",))
+    monkeypatch.setattr(cli, "PublishedProvider", lambda chain, *_: FixtureProvider(chain))
+    url = f"postgresql://{db.info.user}@127.0.0.1:{db.info.port}/{db.info.dbname}"
+    assert (
+        main(
+            ["refresh", "--run-id", str(run.id)],
+            env={"DATABASE_URL": url, "GITHUB_RUN_ID": "12345"},
+            transport=Capture(),
+        )
+        == 0
+    )
+    assert get_run_status(db, run.id).status == "SUCCEEDED"

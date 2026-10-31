@@ -12,6 +12,8 @@ from .chains import CHAINS
 from .config import ConfigurationError, load_settings
 from .logging import create_logger
 from .logging.types import Transport
+from .providers.published import PublishedProvider
+from .repository.connection import DatabaseConnectionError, make_connection_factory
 from .runs.worker import ConnectionFactory, ProviderFactory, run_worker
 
 
@@ -46,7 +48,7 @@ def _parser() -> argparse.ArgumentParser:
         "check-config", help="Validate process settings without connections"
     )
     check.add_argument("--require-database", action="store_true")
-    refresh = commands.add_parser("refresh", help="Reserved: refresh an authorized run")
+    refresh = commands.add_parser("refresh", help="Refresh an authorized database run")
     refresh.add_argument("--run-id", required=True, type=UUID)
     scheduled = commands.add_parser("scheduled", help="Reserved: run Israel daily scheduling")
     scheduled.add_argument("--timezone", choices=["Asia/Jerusalem"], default="Asia/Jerusalem")
@@ -100,11 +102,7 @@ def main(
             from .providers.trial import run_probe
 
             return run_probe(chains, settings, logger, max_branches=args.max_branches)
-        if (
-            args.command == "refresh"
-            and provider_factory is not None
-            and connection_factory is not None
-        ):
+        if args.command == "refresh":
             process = os.environ if env is None else env
             execution_id = process.get("GITHUB_RUN_ID", "")
             attempt = process.get("GITHUB_RUN_ATTEMPT", "1")
@@ -112,6 +110,19 @@ def main(
                 r"[0-9]{1,10}", attempt
             ):
                 logger.error("configuration.invalid", "GitHub execution correlation is required")
+                return 2
+            try:
+                connect = (
+                    connection_factory
+                    if connection_factory is not None
+                    else make_connection_factory(settings.database_url or "", env=process)
+                )
+            except DatabaseConnectionError as error:
+                logger.error(
+                    "configuration.invalid",
+                    "Database connection configuration is invalid",
+                    error_code=str(error),
+                )
                 return 2
             cancelled = Event()
             previous = None
@@ -122,8 +133,10 @@ def main(
                     args.run_id,
                     execution_id=f"{execution_id}:{attempt}",
                     settings=settings,
-                    connection_factory=connection_factory,
-                    provider_factory=provider_factory,
+                    connection_factory=connect,
+                    provider_factory=PublishedProvider
+                    if provider_factory is None
+                    else provider_factory,
                     logger=logger,
                     cancelled=cancelled,
                 )
@@ -133,9 +146,7 @@ def main(
         logger.error(
             "command.unavailable",
             "Collection command is not enabled yet",
-            error_code="SOURCE_MAPPING_UNVERIFIED"
-            if args.command == "refresh"
-            else "SCHEDULER_UNAVAILABLE",
+            error_code="SCHEDULER_UNAVAILABLE",
         )
         return 3
     finally:

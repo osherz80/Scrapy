@@ -1,6 +1,6 @@
 # Scraper implementation tasks
 
-Status: implementing database coordination; source roster mapping remains open.
+Status: default worker/source/database composition implemented; next scheduling and workflows.
 Check items only after evidence is recorded. Paths below are relative to this
 scraper repository. Each task is a separate commit. The user authorized pushes;
 deployment is not implied.
@@ -208,21 +208,26 @@ Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 ## 17. Worker end-to-end
 Dependencies: 4, 11, 16. Scope: medium.
 Files: `runs/worker.py`, `cli.py`, `tests/integration/test_worker.py`, `tests/unit/test_worker_failures.py`.
-- [ ] Refresh reads authorized chains from run UUID and wires listing -> selection -> full parse -> aggregate -> fenced publish with heartbeat.
+- [x] Refresh reads authorized chains from run UUID and wires listing -> selection -> full parse -> aggregate -> fenced publish with heartbeat. Default factories now use the eight-source adapter and existing DATABASE_URL.
 - [x] Per-chain partial success, run outcomes, cancellation/timeout and structured sanitized counts/durations have explicit behavior.
 - [x] Verification: 12 fixture-backed PostgreSQL worker/CLI cases cover complete refresh, authorized chains, partial source failure, duplicate delivery, initial validation, heartbeat SQL failure, deadlines, cancellation, SIGTERM/keyboard interrupt, publication failure and cleanup. Eleven offline worker/CLI cases cover preflight without connection/secret echoes; startup also rejects limits beyond the repository's lease/job maxima.
 
-Worker library and explicitly injected CLI composition are implemented. Standard
-CLI refresh remains SOURCE_MAPPING_UNVERIFIED until task 6's real publisher roster
-factory is verified; no bypass flag or implicit database connection is added.
-This keeps the first task-17 checkbox open. Provider/database factories must bound
-I/O and honor deadlines; cooperative safe points do not forcibly cancel blocked
-calls. The hosted hard timeout remains task 19. No live refresh/Supabase operation
-has run. Next resolve source roster mapping before default CLI activation.
+Worker and default CLI composition are implemented. Refresh requires the admitted
+run UUID and GitHub execution context, uses direct sessions from DATABASE_URL, and
+never accepts workflow source URLs or arbitrary chain overrides. Connection policy
+is shared with migration administration, including verified TLS and no env-file
+loader. The default connector is tested on a disposable database with fixture
+sources; all eight source adapters separately passed local read-only collection.
+Cooperative safe points cannot forcibly cancel blocked calls; the hosted hard
+timeout remains task 19. No Supabase operation has run. Next: schedule/workflows.
 Verification: 395 tests passed, including 110 real PostgreSQL cases. Ruff
 lint/format and sdist/wheel build passed on Python 3.12.16.
 
+Latest verification after provider/default connector wiring: 434 tests passed,
+including 111 real PostgreSQL cases; Ruff lint/format and sdist/wheel build passed.
+
 ## 18. Israel daily schedule
+
 Dependencies: 13, 17. Scope: medium.
 Files: `runs/schedule.py`, `repository/schedule.py`, `tests/unit/test_schedule.py`, `tests/integration/test_schedule_claim.py`.
 - [ ] 03:00/04:00 UTC candidates use Asia/Jerusalem 06:00 gate and atomic local-date claim, reserve all ten or report conflict.

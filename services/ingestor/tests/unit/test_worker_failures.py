@@ -75,14 +75,14 @@ def test_injected_cli_requires_safe_execution_correlation_before_connection(gith
     assert "secret" not in capsys.readouterr().err
 
 
-def test_partial_dependency_injection_cannot_unblock_the_production_cli():
+def test_provider_injection_cannot_bypass_required_execution_context():
     assert (
         main(
             ["refresh", "--run-id", str(uuid4())],
             env={"DATABASE_URL": "postgresql://worker:synthetic-secret@db.test/db"},
             provider_factory=forbidden,
         )
-        == 3
+        == 2
     )
 
 

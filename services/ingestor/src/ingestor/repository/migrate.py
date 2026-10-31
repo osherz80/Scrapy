@@ -7,11 +7,11 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import parse_qsl, urlsplit
 
 import psycopg
 
 from ..logging import create_logger
+from .connection import DatabaseConnectionError, connection_options
 
 _MIGRATION_NAME = re.compile(r"^(\d{3,})_[a-z0-9_]+\.sql$")
 
@@ -169,48 +169,9 @@ def rollback_migration(
 
 def _connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str, object]:
     try:
-        parsed = urlsplit(url)
-        if (
-            parsed.scheme not in ("postgres", "postgresql")
-            or not parsed.hostname
-            or not parsed.username
-        ):
-            raise ValueError
-        if not parsed.path.strip("/") or parsed.fragment:
-            raise ValueError
-        _ = parsed.port
-        query = dict(parse_qsl(parsed.query))
-        if any(
-            key in query
-            for key in (
-                "service",
-                "passfile",
-                "sslcert",
-                "sslkey",
-                "sslrootcert",
-                "sslcrl",
-                "sslcrldir",
-            )
-        ):
-            raise ValueError
-        local_test = parsed.hostname in ("127.0.0.1", "localhost", "::1") and parsed.path.lstrip(
-            "/"
-        ).startswith("ingestor_test")
-        if not local_test and not parsed.password:
-            raise ValueError
-    except ValueError:
-        raise MigrationError("INVALID_DATABASE_URL") from None
-    if env.get("PGSERVICE"):
-        raise MigrationError("PGSERVICE_NOT_SUPPORTED")
-    options: dict[str, object] = {
-        "autocommit": True,
-        "connect_timeout": 10,
-        "sslmode": "disable" if local_test else "verify-full",
-        "passfile": str(root / "Temp/disabled-passfile"),
-    }
-    if not local_test:
-        options["sslrootcert"] = "system"
-    return options
+        return connection_options(url, env, root)
+    except DatabaseConnectionError as error:
+        raise MigrationError(str(error)) from None
 
 
 class _Parser(argparse.ArgumentParser):

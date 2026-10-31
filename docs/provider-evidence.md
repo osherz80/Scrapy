@@ -1,5 +1,14 @@
 # Provider evaluation
 
+Update 2026-10-31: physical roster mapping and complete listing boundaries are
+implemented for the eight active chains; see [roster evidence](roster-mapping.md).
+All 24 locally sampled physical catalogs parsed/reconciled successfully without
+raw files or database writes. Production uses audited portal protocols through
+our bounded client; the SDK remains diagnostic-only because its pagination/retry
+rules cannot enforce the production contract. Sections below preserve the initial
+trial evidence. Hosted reachability remains unverified and both deferred sources
+remain disabled.
+
 Status: bounded local trial completed on 2026-10-30. Eight chains passed initial
 catalog validation; two have explicit failures. None is claimed production-ready
 or verified from a GitHub runner. Physical-branch eligibility remains unverified.

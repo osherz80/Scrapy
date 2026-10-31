@@ -136,7 +136,8 @@ must provide a separate connection with bounded I/O for renewal, call the guard
 before more work, cancel/close in-flight work at teardown, and still verify the
 token in the publication transaction. Python threads cannot forcibly cancel
 blocked I/O. Worker composition is implemented with injected factories; the
-standard CLI remains gated until the publisher roster factory is verified.
+standard CLI now selects the locally verified publisher factory and direct
+DATABASE_URL sessions. Hosted validation remains separate.
 
 ## Atomic chain publication
 
@@ -239,12 +240,25 @@ an arbitrary blocked provider call.
 
 The CLI's Python API permits explicit factory injection for integration tests,
 uses GitHub execution correlation, and installs/restores a cooperative SIGTERM
-handler on the main thread. Default command-line refresh remains disabled with
-SOURCE_MAPPING_UNVERIFIED; no production provider or database factory is selected
-implicitly. Real PostgreSQL tests cover complete fixture refresh, partial source
+handler on the main thread. Command-line refresh selects the bounded publisher
+adapter and a direct-session factory from the existing DATABASE_URL. Real
+PostgreSQL tests cover complete fixture refresh, partial source
 failure, duplicate delivery, heartbeat SQL failure, cancellation, deadlines,
 publication failure, keyboard interruption and signal restoration. This is not
 evidence of live publisher roster correctness or hosted connectivity.
+
+The shared connection policy is also used by migration administration, retaining
+its optional migration-only credential override. Workers always use DATABASE_URL.
+Remote sessions force certificate/hostname verification against system roots,
+10-second connect timeout, and project-local disabled password-file lookup.
+Connection-target overrides and file-backed service/certificate URL options are
+rejected. Only explicit loopback ingestor_test databases permit unencrypted tests.
+
+Worker sessions set 15-second statement/idle-transaction and five-second lock
+timeouts, plus TCP keepalive idle/interval/count 10/5/3 and a 15,000-ms TCP user
+timeout. Socket controls depend on platform support and are not a substitute for
+the hosted hard timeout; see [libpq connection options](https://www.postgresql.org/docs/18/libpq-connect.html).
+No connection helper reads `.env` or introduces a second required database URL.
 
 ## Verification
 

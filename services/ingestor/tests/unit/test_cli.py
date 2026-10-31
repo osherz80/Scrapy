@@ -45,14 +45,14 @@ def test_invalid_command_arguments_never_echo_values(args, capsys):
     assert "secret-" not in capsys.readouterr().err
 
 
-def test_unwired_refresh_exits_explicitly_without_success_claim(capsys):
+def test_refresh_requires_execution_context_before_connection(capsys):
     code = main(
         ["refresh", "--run-id", "31318188-526e-4cad-aad2-c914228910fd"],
         env={"DATABASE_URL": "postgresql://worker:synthetic-secret@db.test/catalog"},
     )
     record = json.loads(capsys.readouterr().err)
-    assert code == 3
-    assert record["event"] == "command.unavailable"
+    assert code == 2
+    assert record["event"] == "configuration.invalid"
     assert record["fields"]["entry_point"] == "refresh"
     assert "synthetic-secret" not in json.dumps(record)
 

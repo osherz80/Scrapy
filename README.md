@@ -33,7 +33,7 @@ delete task-created contents of `Temp/` after verification. Runtime and virtual
 environment directories remain ignored and local. On Linux use `.venv312/bin/python`.
 
 Collection and database coordination are implemented and verified locally.
-Live source roster mapping and hosted workflows remain implementation gates;
+Source roster mapping is locally verified for eight chains. Hosted workflows remain gates;
 operational readiness must not be inferred from fixture/bootstrap tests.
 
 ## Logging boundary
@@ -71,11 +71,14 @@ durable operational status independently of the console transport.
 `python -m ingestor.cli check-config` validates process settings only;
 add `--require-database` to require a PostgreSQL URL. It does not test connectivity,
 TLS, schema, privileges or source reachability. Exit codes: 0 valid, 2 invalid
-configuration/arguments, 3 collection command not enabled. Standard `refresh`
-remains gated with SOURCE_MAPPING_UNVERIFIED until the live provider factory is
-verified; `scheduled` also remains unavailable. Neither default command connects
-or publishes. Tests inject explicit provider/connection factories into the Python
-CLI API to exercise an authorized refresh without adding a CLI bypass flag.
+configuration/arguments, 3 command not enabled. `refresh --run-id <UUID>` is now
+wired to live adapters and direct DATABASE_URL sessions. It consumes an existing
+PENDING run admitted by the control library; it never creates authorization from
+a newly invented UUID or takes a chain/URL override. GITHUB_RUN_ID is required,
+with GITHUB_RUN_ATTEMPT defaulting to 1. Actions supplies these in hosted execution.
+`scheduled` remains unavailable until its scheduling slice is complete. Refresh
+is an explicit network/database mutation command; check-config remains
+connection-free. A real Supabase refresh has not been run during implementation.
 
 ### Optional source feasibility probe
 
@@ -117,7 +120,8 @@ explicit physical/online/pharmacy/unknown branch classifications. Inventory
 selection consumes the entire listing before returning candidates, chooses only
 latest exact PriceFull files and keeps missing-time branches as failed-attempt
 candidates rather than silently falling back to older files. Unknown branch types
-are not guessed. Publisher-specific metadata mapping is still being implemented.
+are not guessed. Publisher metadata mapping and local collection evidence are
+recorded in [roster mapping](docs/roster-mapping.md).
 
 The sampling policy shuffles once using SystemRandom, then attempts three slots
 with at most two replacements each. Its collection callback must completely
@@ -133,7 +137,9 @@ eligibility. Decimal reconciliation and the injected collection composition are
 also implemented: complete inventory -> sampling -> parse -> reconcile. Empty or
 fully conflicted results are explicitly nonpublishable. Backend name/token parity
 uses pinned JavaScript-generated fixtures. Worker orchestration and atomic
-publication are implemented; publisher roster/eligibility mapping remains open.
+publication and publisher roster mapping are implemented. The production adapter
+uses audited portal protocols with our bounded HTTP client; the SDK remains
+optional for probes and is not required by refresh.
 
 The worker claims a PENDING run once, reads its chain list from PostgreSQL,
 renews ownership on a dedicated connection, and collects/publishes chains
@@ -148,7 +154,7 @@ Factories must bound source/database I/O and honor the supplied monotonic
 deadline. Safe-point checks cannot forcibly interrupt blocked Python calls;
 the hosted hard timeout and expiry recovery remain necessary. Worker result codes
 are 0 success/duplicate skip, 1 failed/partial, 2 invalid preflight, 130 cancelled.
-The injected CLI requires GITHUB_RUN_ID and optional GITHUB_RUN_ATTEMPT (default 1).
+The CLI requires GITHUB_RUN_ID and optional GITHUB_RUN_ATTEMPT (default 1).
 See [database behavior](docs/database.md) for publication, recovery and retention.
 
 ## Database schema and migrations
@@ -176,6 +182,7 @@ remain launch work; admission, fencing, publication and recovery are implemented
 | Process variable | Default / requirement |
 |---|---|
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |
+| GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT | Required execution ID / attempt defaults to 1 for refresh |
 | ENABLED_CHAINS | Eight active chains by default; comma-separated distinct registry IDs |
 | PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
 | PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000, positive integer |

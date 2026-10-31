@@ -82,4 +82,6 @@ no branch replacements or database writes occurred.
 Conflicts follow the existing conservative packaging/duplicate rules; unknown
 dimensions were not guessed to increase coverage. True source dates were retained.
 Raw data lived only in transient memory. Supabase/hosted execution and capacity
-remain separate gates. Default CLI composition is the next implementation slice.
+remain separate gates. Default CLI composition now selects this provider and the
+existing DATABASE_URL direct-session factory. It has been tested against disposable
+PostgreSQL with fixture sources; no live Supabase refresh has been performed.
