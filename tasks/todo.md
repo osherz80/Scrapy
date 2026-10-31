@@ -308,7 +308,3 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 ## One-click manual refresh
 - [x] GitHub refresh accepts blank run_id, atomically admits all enabled chains in the runner and immediately invokes the normal fenced worker. Existing API-admitted IDs still supported.
 - [x] Thirty focused unit and real PostgreSQL cases pass, including admission-to-publication, conflicts, existing-ID reuse and connection cleanup; Ruff/actionlint/build pass.
-
-## Raw password configuration
-- [x] Optional DATABASE_PASSWORD overrides URL credentials through driver keyword arguments for workers/migrations. Supabase [YOUR-PASSWORD] URL templates accepted; no user encoding needed. Secret remains scoped to refresh database step.
-- [x] Regression coverage includes URL template/password omission/override and special characters; 366 unit tests and Ruff pass.

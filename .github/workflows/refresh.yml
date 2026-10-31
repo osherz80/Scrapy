@@ -61,7 +61,6 @@ jobs:
         if: env.RUN_MODE == 'refresh' || env.RUN_MODE == 'scheduled'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
           DATABASE_CA_CERT: ${{ secrets.DATABASE_CA_CERT }}
           DATABASE_SSLROOTCERT: Temp/database-ca.crt
         shell: bash

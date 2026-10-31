@@ -13,7 +13,7 @@ class DatabaseConnectionError(Exception):
 
 def connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str, object]:
     try:
-        parsed = urlsplit(connection_dsn(url, env))
+        parsed = urlsplit(url)
         if (
             parsed.scheme not in ("postgres", "postgresql")
             or not parsed.hostname
@@ -46,7 +46,7 @@ def connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str
         local_test = parsed.hostname in ("127.0.0.1", "localhost", "::1") and parsed.path.lstrip(
             "/"
         ).startswith("ingestor_test")
-        if not local_test and not (parsed.password or env.get("DATABASE_PASSWORD")):
+        if not local_test and not parsed.password:
             raise ValueError
     except ValueError:
         raise DatabaseConnectionError("INVALID_DATABASE_URL") from None
@@ -58,10 +58,6 @@ def connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str
         "sslmode": "disable" if local_test else "verify-full",
         "passfile": str(root / "Temp/disabled-passfile"),
     }
-    if password := env.get("DATABASE_PASSWORD"):
-        if "\x00" in password:
-            raise DatabaseConnectionError("INVALID_DATABASE_PASSWORD")
-        options["password"] = password
     if not local_test:
         options["sslrootcert"] = "system"
         if certificate := env.get("DATABASE_SSLROOTCERT"):
@@ -74,17 +70,6 @@ def connection_options(url: str, env: Mapping[str, str], root: Path) -> dict[str
                 raise DatabaseConnectionError("DATABASE_CA_FILE_INVALID") from None
             options["sslrootcert"] = str(path)
     return options
-
-
-def connection_dsn(url: str, env: Mapping[str, str]) -> str:
-    """Remove the template/embedded password when a raw password is supplied."""
-    if not env.get("DATABASE_PASSWORD"):
-        return url
-    parsed = urlsplit(url.replace("[YOUR-PASSWORD]", ""))
-    userinfo, separator, host = parsed.netloc.rpartition("@")
-    if separator:
-        parsed = parsed._replace(netloc=userinfo.split(":", 1)[0] + "@" + host)
-    return parsed.geturl()
 
 
 def connection_failure_diagnostic(error: Exception) -> tuple[str, str]:
@@ -155,6 +140,6 @@ def make_connection_factory(
     )
 
     def connect() -> psycopg.Connection:
-        return psycopg.connect(connection_dsn(url, env), **options)
+        return psycopg.connect(url, **options)
 
     return connect

@@ -50,11 +50,7 @@ def load_settings(
         raise ConfigurationError("DATABASE_URL is required")
     if database_url:
         try:
-            parsed = urlsplit(
-                database_url.replace("[YOUR-PASSWORD]", "")
-                if env.get("DATABASE_PASSWORD")
-                else database_url
-            )
+            parsed = urlsplit(database_url)
             valid = parsed.scheme in ("postgres", "postgresql") and parsed.hostname and parsed.path
             if not valid or not parsed.path.strip("/") or parsed.fragment:
                 raise ValueError
