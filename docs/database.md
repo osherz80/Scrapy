@@ -10,8 +10,8 @@ the Python wheel alone does not install the repository's SQL assets.
 The private `supermarket` schema contains chains, current products, runs,
 per-chain run outcomes, leases and daily claims. There is no price-history or raw
 catalog table. Ten chain IDs are seeded; Carrefour and Shufersal start disabled.
-Operational retention/recovery and atomic publication are later implementation
-tasks, not implied by the presence of tables.
+Transactional publication, run recovery and retention are implemented repository
+libraries. CLI worker wiring and actual hosted operation remain separate tasks.
 
 Three NOLOGIN permission groups isolate services:
 
@@ -108,9 +108,9 @@ Updates lock the run row and ignore claimed/terminal/scheduled runs and stale
 notifications. The worker claim must use the same run-row lock. These functions
 do not send HTTP requests, read environment files or expose backend endpoints.
 
-Expired leases currently fail closed rather than being silently stolen. Task 16
-will reconcile abandoned run records before admission/status retry. Do not treat
-this library alone as an operational refresh service.
+Admission reconciles abandoned overlapping runs in the same transaction before
+new reservation. A conflicting admission rolls back that recovery as well as its
+new reservations. Do not treat this library alone as an operational refresh service.
 
 ## Worker ownership library
 
@@ -135,7 +135,7 @@ monotonic deadline or shutdown. Shutdown waits at most five seconds. The worker
 must provide a separate connection with bounded I/O for renewal, call the guard
 before more work, cancel/close in-flight work at teardown, and still verify the
 token in the publication transaction. Python threads cannot forcibly cancel
-blocked I/O. Recovery and CLI worker wiring remain later tasks.
+blocked I/O. CLI worker wiring remains a later task.
 
 ## Atomic chain publication
 
@@ -164,7 +164,7 @@ failed attempts; no observed prices or raw payloads are retained.
 Any SQL/constraint/ownership failure rolls back products, metadata, outcome and
 lease changes. Repeating an already committed chain is rejected, protecting a
 successful publication after an uncertain caller response. Per-chain success or
-failure does not finalize the whole run; task 16 supplies finalization/recovery.
+failure does not finalize the whole run; the recovery library handles that step.
 Durations, product counts and source age are logged through the existing facade;
 driver error messages and product values are not logged.
 
@@ -174,6 +174,43 @@ admission. A paused writer demonstrates complete old-catalog visibility until
 commit, then complete new data/metadata; a REPEATABLE READ reader keeps its old
 snapshot across that commit. This verifies repository transactions, not an API
 search implementation or a live Supabase refresh.
+
+## Recovery, status and retention
+
+`repository.recovery.get_run_status` reconciles the requested run before returning
+an immutable run/per-chain summary, including GitHub execution correlation, counts,
+source dates and static error codes. It works with the control role and never
+reads product contents. `reconcile_expired` sweeps pending/running records;
+admission uses the same recovery logic for overlapping runs inside its transaction.
+
+Recovery locks runs in UUID order and each run before its ordered leases. It
+does not acquire admission advisory locks. After locking, it checks current DB
+time: pending dispatch has 30 minutes, a worker has 45 minutes, and each running
+lease has its own five-minute expiry. A missing/inconsistent lease also means
+lost ownership. All unfinished chains of that worker fail together and its
+reservations are released. Successful chain records and published products are
+preserved. Final outcome is SUCCEEDED, FAILED or PARTIAL_FAILED according to the
+committed chain outcomes. A worker killed after its last publication is finalized
+without undoing that publication. Recovery is idempotent.
+
+`finish_run` finalizes completed outcomes. With `abort=True`, it fails only
+unfinished chains as WORKER_ABORTED, after checking the complete remaining token
+set under lock. It may release its own expired reservations; missing/reassigned
+ownership requires independent recovery. Retrying terminal teardown is harmless.
+
+`prune_runs` deletes at most 100 terminal records per transaction whose completion
+is older than 30 days. It excludes active runs and any run referenced by a lease,
+current chain pointer or product. Per-chain outcomes and date claims cascade with
+an eligible old run. Products are never deleted by retention. Locked candidates
+are skipped, and repeat calls drain a larger eligible backlog. This maintenance
+requires ingestor permissions because it verifies product references.
+
+Real PostgreSQL tests cover pending/running expiry, partial publication recovery,
+status/admission reconciliation, job deadlines, missing ownership, concurrent
+re-admission, recovery rollback with admission conflict, teardown ownership,
+current/active reference retention and the 100-record bound. These are repository
+functions; status endpoints and periodic maintenance invocation still need worker
+and workflow wiring. Supabase has not been accessed.
 
 ## Verification
 

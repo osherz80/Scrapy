@@ -8,6 +8,7 @@ from psycopg.pq import TransactionStatus
 
 from ..chains import CHAINS
 from ..runs.admission import AdmissionError, AdmittedRun, validate_request
+from .recovery import reconcile_for_admission
 
 # All ten identities participate so deferred-source changes cannot shift indexes.
 _CHAIN_IDS = tuple(sorted(chain.id for chain in CHAINS))
@@ -31,8 +32,8 @@ def admit_run(
 ) -> AdmittedRun:
     """Commit all reservations or none; caller owns a dedicated idle connection.
 
-    Active runs for disjoint chain sets coexist. Expired reservations are never
-    stolen here: the recovery layer must reconcile the previous run first.
+    Active runs for disjoint chain sets coexist. Abandoned runs overlapping this
+    request are reconciled in the same transaction before new reservation.
     """
     chains = validate_request(chains, origin)
     _require_idle(connection)
@@ -53,6 +54,7 @@ def admit_run(
         ).fetchall()
         if tuple(row[0] for row in enabled) != chains:
             raise AdmissionError("CHAIN_DISABLED")
+        reconcile_for_admission(connection, chains)
         now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
         connection.execute(
             "INSERT INTO supermarket.refresh_runs"

@@ -267,8 +267,8 @@ def test_invalid_collection_fails_without_mutation(publication_db, fault):
 @pytest.mark.parametrize("new_published", [False, True])
 def test_expired_owner_cannot_overwrite_new_run(publication_db, new_published):
     old_owner = owner_for(publication_db)
-    # Simulate recovery's release boundary without relying on run finalization
-    # to reject this owner; the old run deliberately remains RUNNING here.
+    # Simulate a missing reservation; admission must reconcile the old run
+    # before reserving the same chain for its replacement.
     publication_db.execute(
         "DELETE FROM supermarket.chain_leases WHERE run_id=%s", (old_owner.run_id,)
     )

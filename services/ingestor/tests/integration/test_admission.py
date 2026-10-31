@@ -153,12 +153,17 @@ def test_database_disabled_chain_is_rejected(admitted_db):
         admit_run(admitted_db, ("victory",))
 
 
-def test_expired_lease_is_not_silently_stolen_before_reconciliation(admitted_db):
+def test_expired_lease_is_reconciled_before_readmission(admitted_db):
     first = admit_run(admitted_db, ("victory",))
     admitted_db.execute(
         "UPDATE supermarket.chain_leases SET heartbeat_at=clock_timestamp()-interval '2 hours',"
         "expires_at=clock_timestamp()-interval '1 hour' WHERE run_id=%s",
         (first.id,),
     )
-    with pytest.raises(AdmissionError, match="CHAIN_RESERVED"):
-        admit_run(admitted_db, ("victory",))
+    replacement = admit_run(admitted_db, ("victory",))
+    assert admitted_db.execute(
+        "SELECT status,error_code FROM supermarket.refresh_runs WHERE id=%s", (first.id,)
+    ).fetchone() == ("FAILED", "DISPATCH_EXPIRED")
+    assert admitted_db.execute("SELECT run_id FROM supermarket.chain_leases").fetchall() == [
+        (replacement.id,)
+    ]

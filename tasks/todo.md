@@ -188,12 +188,20 @@ lint/format and sdist/wheel build passed on Python 3.12.16.
 ## 16. Recovery and retention
 Dependencies: 15. Scope: medium.
 Files: `runs/recovery.py`, `repository/recovery.py`, `tests/integration/test_recovery.py`.
-- [ ] Expired leases reconcile on admission/status; teardown fails unfinished chains without corrupting completed publication.
-- [ ] Prune operational records after 30 days without removing active/current references; no product history retained.
-- [ ] Verification: hard-kill expiry, partial outcomes, current/active retention and idempotent cleanup.
+- [x] Expired leases reconcile on admission/status; teardown fails unfinished chains without corrupting completed publication.
+- [x] Prune operational records after 30 days without removing active/current references; no product history retained.
+- [x] Verification: 15 PostgreSQL cases cover abandoned pending/running expiry, partial outcomes and finalization after last publication, status/admission recovery, missing ownership, deadline, concurrent disjoint re-admission after one shared old run, teardown token checks, recovery rollback on admission conflict, retention references/idempotency and a 100-record transaction bound. Nine offline cases verify final run status policy.
+
+Earlier task 13's fail-closed expiry boundary is now replaced by explicit
+reconciliation before admission/status. Completed outcomes/products are never
+rewritten by recovery. Status and maintenance remain repository APIs; worker and
+scheduled invocation are tasks 17–19. No Supabase operation has been performed.
+Verification: the full 367-case suite passed, followed by the expanded 15-case
+recovery integration suite (370 distinct tests total, 98 real PostgreSQL cases).
+Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
 ## Checkpoint: database correctness
-- [ ] Real PostgreSQL concurrency, rollback, fencing, crash, role and visibility tests pass; do not substitute mocks for this gate.
+- [x] Real PostgreSQL concurrency, rollback, fencing, crash, role and visibility tests pass; no mocks substituted for persistence/concurrency gates. Hosted reachability and capacity remain separate measurements.
 
 ## 17. Worker end-to-end
 Dependencies: 4, 11, 16. Scope: medium.
