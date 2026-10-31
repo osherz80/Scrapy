@@ -224,3 +224,7 @@ production migrations automatically. Supabase schema changes are applied only by
 See [configuration](docs/configuration.md), [operator runbook](docs/operations.md)
 and [pilot evidence](docs/pilot-results.md) for environment setup, execution,
 recovery and remaining launch gates.
+
+Manual full refresh: Actions > Supermarket refresh > Run workflow > mode=refresh,
+leave run_id blank. The runner admits the run automatically and publishes through
+the normal worker. Existing API-created runs can still supply optional run_id.

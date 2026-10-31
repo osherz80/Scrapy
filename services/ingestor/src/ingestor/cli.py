@@ -14,8 +14,9 @@ from .logging import create_logger
 from .logging.types import Transport
 from .providers.published import PublishedProvider
 from .repository.connection import DatabaseConnectionError, make_connection_factory
+from .runs.manual import run_manual
 from .runs.schedule import run_scheduled
-from .runs.worker import ConnectionFactory, ProviderFactory, run_worker
+from .runs.worker import ConnectionFactory, ProviderFactory
 
 
 class _Parser(argparse.ArgumentParser):
@@ -49,8 +50,8 @@ def _parser() -> argparse.ArgumentParser:
         "check-config", help="Validate process settings without connections"
     )
     check.add_argument("--require-database", action="store_true")
-    refresh = commands.add_parser("refresh", help="Refresh an authorized database run")
-    refresh.add_argument("--run-id", required=True, type=UUID)
+    refresh = commands.add_parser("refresh", help="Admit and execute a full manual refresh")
+    refresh.add_argument("--run-id", type=UUID, help="Optional existing API-admitted run")
     scheduled = commands.add_parser("scheduled", help="Claim and execute the Israel daily refresh")
     scheduled.add_argument("--timezone", choices=["Asia/Jerusalem"], default="Asia/Jerusalem")
     probe = commands.add_parser("probe", help="Run a bounded provider feasibility probe")
@@ -96,7 +97,7 @@ def main(
         transport=transport,
     ).child(
         entry_point=args.command,
-        **({"run_id": str(args.run_id)} if args.command == "refresh" else {}),
+        **({"run_id": str(args.run_id)} if args.command == "refresh" and args.run_id else {}),
     )
     try:
         if args.command == "check-config":
@@ -149,7 +150,7 @@ def main(
                     cancelled=cancelled,
                 )
                 return (
-                    run_worker(args.run_id, **parameters)
+                    run_manual(args.run_id, **parameters)
                     if args.command == "refresh"
                     else run_scheduled(**parameters)
                 )

@@ -142,6 +142,53 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     assert any(record["event"] == "run.finished" for record in capture.records)
 
 
+def test_cli_refresh_without_id_admits_and_publishes_using_worker_role(harness):
+    db, connect, connections = harness
+    assert (
+        main(
+            ["refresh"],
+            env={
+                "DATABASE_URL": "postgresql://synthetic:secret@db.test/db",
+                "GITHUB_RUN_ID": "23456",
+                "ENABLED_CHAINS": "victory",
+            },
+            connection_factory=connect,
+            provider_factory=lambda chain, *_: FixtureProvider(chain),
+            transport=Capture(),
+        )
+        == 0
+    )
+    assert db.execute("SELECT status FROM public.refresh_runs").fetchall() == [("SUCCEEDED",)]
+    assert db.execute("SELECT chain_id,price,sample_count FROM public.products").fetchall() == [
+        ("victory", 11, 3)
+    ]
+    assert all(connection.closed for connection in connections)
+
+
+def test_cli_manual_conflict_preserves_existing_run_and_never_opens_provider(harness):
+    db, connect, _ = harness
+    admit_run(db, ("victory",))
+
+    def forbidden(*_):
+        pytest.fail("Conflict must prevent provider access")
+
+    assert (
+        main(
+            ["refresh"],
+            env={
+                "DATABASE_URL": "postgresql://synthetic:secret@db.test/db",
+                "GITHUB_RUN_ID": "23456",
+                "ENABLED_CHAINS": "victory",
+            },
+            connection_factory=connect,
+            provider_factory=forbidden,
+            transport=Capture(),
+        )
+        == 1
+    )
+    assert db.execute("SELECT count(*) FROM public.refresh_runs").fetchone() == (1,)
+
+
 def test_source_failure_does_not_prevent_other_chain_from_publishing(harness):
     db, _, _ = harness
     run = admit_run(db, ("victory", "osher-ad"))

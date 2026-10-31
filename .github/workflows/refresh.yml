@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Refresh an admitted run, or run a source-only diagnostic
+        description: Full refresh (writes products), or source-only probe/pilot
         type: choice
         options:
           - refresh
@@ -15,7 +15,7 @@ on:
         default: refresh
         required: true
       run_id:
-        description: Authorized database run UUID, required for refresh
+        description: Optional API-admitted run ID; leave blank for a full refresh
         type: string
         required: false
 permissions:
@@ -47,12 +47,7 @@ jobs:
         run: |
           case "$GITHUB_EVENT_NAME:$RUN_MODE" in
             schedule:scheduled|workflow_dispatch:probe|workflow_dispatch:pilot) ;;
-            workflow_dispatch:refresh)
-              if [[ -z "$AUTHORIZED_RUN_ID" ]]; then
-                echo 'Refresh requires an admitted database run UUID' >&2
-                exit 2
-              fi
-              ;;
+            workflow_dispatch:refresh) ;;
             *) echo 'Unsupported workflow mode' >&2; exit 2 ;;
           esac
       - uses: ./.github/actions/setup-ingestor
@@ -86,6 +81,12 @@ jobs:
           fi
           case "$RUN_MODE" in
             scheduled) .venv312/bin/python -m ingestor.cli scheduled ;;
-            refresh) .venv312/bin/python -m ingestor.cli refresh --run-id "$AUTHORIZED_RUN_ID" ;;
+            refresh)
+              if [[ -n "$AUTHORIZED_RUN_ID" ]]; then
+                .venv312/bin/python -m ingestor.cli refresh --run-id "$AUTHORIZED_RUN_ID"
+              else
+                .venv312/bin/python -m ingestor.cli refresh
+              fi
+              ;;
             *) exit 2 ;;
           esac
