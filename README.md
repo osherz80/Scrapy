@@ -242,3 +242,8 @@ rows were preserved. Use this matching worker branch until it is merged to main.
 Migration 004 is now applied: item_nm/xml_fields removed; name_tokens and its GIN
 index restored. Original item_name values are unchanged; normalized_name is not
 a stored column. Future refreshes write search tokens alongside the XML fields.
+
+Migration 005 applied: manufacturer_name/bls_weighted/price_update_date removed;
+source aliases map to manufacture_name/b_is_weighted/price_update_time. Existing
+alternate values were preserved in canonical columns where needed. All 100,295
+products and name_tokens were verified preserved.

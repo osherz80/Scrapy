@@ -93,3 +93,22 @@ def test_newest_branch_metadata_is_preserved_as_one_coherent_item():
     row = aggregate_xml_catalogs([old, new], chain_id="keshet-teamim").products[0]
     assert row.selected_branch.store_id == "002"
     assert row.fields["quantity"] == "999.00"
+
+
+def test_alternate_xml_names_use_only_the_canonical_columns():
+    item = (
+        ITEM.replace("ManufactureName", "ManufacturerName")
+        .replace("bIsWeighted", "blsWeighted")
+        .replace("PriceUpdateTime", "PriceUpdateDate")
+    )
+    row = aggregate_xml_catalogs([catalog(item)], chain_id="keshet-teamim").products[0]
+    assert row.fields["manufacture_name"] == "MIESZKO S.A - MS. JO"
+    assert row.fields["b_is_weighted"] == "0"
+    assert row.fields["price_update_time"] == "2024-03-14T12:55:50.000"
+    assert {"manufacturer_name", "bls_weighted", "price_update_date"}.isdisjoint(row.fields)
+
+
+def test_explicit_canonical_value_wins_over_an_alternate_field():
+    item = ITEM.replace("<ItemStatus/>", "<ItemStatus/><ManufacturerName>Other</ManufacturerName>")
+    row = aggregate_xml_catalogs([catalog(item)], chain_id="keshet-teamim").products[0]
+    assert row.fields["manufacture_name"] == "MIESZKO S.A - MS. JO"

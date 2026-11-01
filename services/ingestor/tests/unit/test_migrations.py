@@ -47,7 +47,7 @@ def test_connection_failure_has_actionable_safe_diagnostic(
 
 def test_repository_has_ordered_paired_forward_and_rollback_migrations():
     migrations = load_migrations(ROOT)
-    assert [migration.version for migration in migrations] == ["001", "002", "003", "004"]
+    assert [migration.version for migration in migrations] == ["001", "002", "003", "004", "005"]
     assert len(migrations[0].checksum) == 64
     assert "CREATE TABLE supermarket.products" in migrations[0].forward
     assert "DROP TABLE supermarket.products" in migrations[0].rollback

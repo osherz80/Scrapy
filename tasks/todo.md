@@ -340,3 +340,7 @@ Hosted XML-storage CI passed for a4e3a45: https://github.com/osherz80/Scrapy/act
 - [x] Remove item_nm and xml_fields through additive migration 004; restore only name_tokens and its GIN index. Do not introduce normalized_name or change original item_name.
 - [x] Restore publication token derivation using the existing tokenizer; migration backfill parity tested against shared backend fixtures.
 - [x] 492 tests, Ruff and builds pass. Applied migration 004 with zero active runs; all 87,186 rows and original item_name values verified unchanged. item_nm/xml_fields removed, name_tokens restored, GIN index valid, normalized_name absent.
+
+## Canonical XML column cleanup
+- [x] Migration 005 removes manufacturer_name/bls_weighted/price_update_date after preserving alternate values in manufacture_name/b_is_weighted/price_update_time when needed. Future XML aliases map to these canonical fields.
+- [x] 495 tests, Ruff, actionlint and distribution builds pass. Migration 005 applied with zero active runs; all 100,295 product rows, names, search tokens and expected merged canonical values verified preserved. Requested duplicate columns are absent.

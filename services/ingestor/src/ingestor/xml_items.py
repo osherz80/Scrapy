@@ -30,10 +30,7 @@ XML_COLUMNS = (
     "unit_of_measure_price",
     "allow_discount",
     "item_status",
-    "manufacturer_name",
-    "price_update_date",
     "is_weighted",
-    "bls_weighted",
 )
 
 
@@ -94,6 +91,14 @@ def parse_xml_catalog(
         raise SourceError("SOURCE_DEFERRED")
     headers = {}
     items = tuple(iter_price_items(xml, headers, max_bytes=max_bytes, preserve_source=True))
+    for fields in items:
+        for alternate, canonical in (
+            ("manufacturer_name", "manufacture_name"),
+            ("bls_weighted", "b_is_weighted"),
+            ("price_update_date", "price_update_time"),
+        ):
+            if alternate in fields:
+                fields.setdefault(canonical, fields.pop(alternate))
     if not all(headers.get(k) for k in ("chainid", "subchainid", "storeid")):
         raise SourceError("MISSING_IDENTITY")
     if (

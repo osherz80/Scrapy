@@ -360,3 +360,12 @@ normalized_name column is added and item_name is never overwritten. New refreshe
 calculate only name_tokens alongside source values. The Unicode-neutral ICU
 collation und-x-icu is used for the SQL backfill; parity fixtures cover Unicode
 case handling, whitespace, punctuation and decimal points.
+
+## Canonical XML columns: migration 005
+
+Remove manufacturer_name and bls_weighted. Merge price_update_date into
+price_update_time and remove the duplicate date column. Before dropping aliases,
+copy their values only where the canonical manufacture_name/b_is_weighted/
+price_update_time value is NULL. Existing canonical values (including empty
+strings) win. Parser aliases use the same canonical names without transforming
+values. Original item_name, name_tokens and all other columns are unchanged.

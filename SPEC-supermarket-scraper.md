@@ -137,8 +137,11 @@ XML columns use snake_case names and text values:
 | AllowDiscount | allow_discount |
 | ItemStatus | item_status |
 
-Alternate XML names ManufacturerName/PriceUpdateDate/IsWeighted/
-blsWeighted have their own snake_case columns, without changing the source name.
+Alternate XML ManufacturerName/blsWeighted/PriceUpdateDate values map into
+manufacture_name/b_is_weighted/price_update_time respectively, without changing
+the values. Migration 005 merges existing aliases into NULL canonical columns
+and removes manufacturer_name/bls_weighted/price_update_date. IsWeighted retains
+its existing column; no other schema changes are part of this correction.
 Migration 004 removes item_nm and xml_fields. No normalized_name column is added.
 The name_tokens text[] search column is derived separately from item_name using
 the existing tokenizer, with a GIN index. Original item_name text remains unchanged.
