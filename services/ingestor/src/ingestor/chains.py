@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-DEFERRED_CHAIN_IDS = frozenset({"carrefour", "shufersal"})
+DEFERRED_CHAIN_IDS = frozenset({"carrefour"})
 
 
 @dataclass(frozen=True, slots=True)

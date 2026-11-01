@@ -12,7 +12,6 @@ from ingestor.runs.admission import AdmissionError, validate_request
         ((None,), "MANUAL", "INVALID_REQUESTED_CHAINS"),
         ("victory", "MANUAL", "INVALID_REQUESTED_CHAINS"),
         (("carrefour",), "MANUAL", "SOURCE_DEFERRED"),
-        (("shufersal",), "MANUAL", "SOURCE_DEFERRED"),
         (("victory",), "unsafe text", "INVALID_RUN_ORIGIN"),
     ],
 )
@@ -23,3 +22,7 @@ def test_request_validation_returns_only_static_diagnostics(chains, origin, code
 
 def test_request_order_is_canonical():
     assert validate_request(("victory", "osher-ad"), "SCHEDULED") == ("osher-ad", "victory")
+
+
+def test_recovered_shufersal_source_is_admitted():
+    assert validate_request(("shufersal",), "MANUAL") == ("shufersal",)

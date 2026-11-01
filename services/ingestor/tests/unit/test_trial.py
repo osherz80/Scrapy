@@ -167,11 +167,10 @@ def test_duplicate_catalog_identity_never_counts_as_two_branches(monkeypatch):
     assert stream.getvalue().count('"event": "probe.branch.succeeded"') == 1
 
 
-@pytest.mark.parametrize("chain", ["carrefour", "shufersal"])
-def test_deferred_candidate_fails_before_constructing_a_network_client(monkeypatch, chain):
+def test_deferred_candidate_fails_before_constructing_a_network_client(monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("deferred source must never open a client")
 
     monkeypatch.setattr(trial, "BoundedClient", forbidden)
     with pytest.raises(SourceError, match="SOURCE_DEFERRED"):
-        trial.CandidateSource(chain, load_settings({}), 0)
+        trial.CandidateSource("carrefour", load_settings({}), 0)
