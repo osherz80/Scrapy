@@ -304,3 +304,7 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 - [x] Hosted CI on cdaa7ea passed 474 tests (357 unit + 117 PostgreSQL) in 12.78 seconds, quality gates, builds and cleanup: https://github.com/osherz80/Scrapy/actions/runs/41243414714.
 - [x] Read-only Supabase baseline recorded in pilot results; worker credential is still elevated.
 - [ ] Manual hosted source pilot: operator instructed how to dispatch; local CLI dispatch rejected with HTTP 401. No production refresh started.
+
+## One-click manual refresh
+- [x] GitHub refresh accepts blank run_id, atomically admits all enabled chains in the runner and immediately invokes the normal fenced worker. Existing API-admitted IDs still supported.
+- [x] Thirty focused unit and real PostgreSQL cases pass, including admission-to-publication, conflicts, existing-ID reuse and connection cleanup; Ruff/actionlint/build pass.

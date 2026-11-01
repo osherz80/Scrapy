@@ -39,3 +39,14 @@ when the worker URL is restricted. LOGIN passwords must be set through the
 platform or an interactive administration tool; no password belongs in SQL files.
 All application tables live in public; these role names are permission groups,
 not separate schemas. Browser roles have no grants on scraper tables.
+
+## GitHub runner network compatibility
+
+Supabase direct endpoints are IPv6-only without the IPv4 add-on. On an IPv4-only
+GitHub runner use the Session pooler URL (port 5432) as the existing DATABASE_URL
+secret. Copy the complete URL from Supabase Connect; the pooler username differs
+from direct connections. Do not use transaction pooling (port 6543) for this
+worker. Session pooling preserves each client session needed by the worker.
+TLS certificate and hostname verification remain enabled.
+
+Source: https://supabase.com/docs/guides/database/connecting-to-postgres

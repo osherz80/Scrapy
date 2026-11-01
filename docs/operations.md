@@ -34,15 +34,17 @@ manual UI. The schedule starts at 06:00 Asia/Jerusalem; 06:00–06:59 invocation
 may start with delay reported. Earlier/duplicate invocations skip; later starts
 fail without database admission. Carrefour and Shufersal stay disabled.
 
-Manual refresh requires an admitted run UUID. Merely generating a UUID is not
-admission. The Python repository API `admit_run(connection, chains)` atomically
-creates the run and reserves all requested chains for 30 minutes. The connection
-must be idle/autocommit with control permissions. Then dispatch refresh.yml with
-mode=refresh and run_id equal to the returned ID. Record delivery through
-`record_dispatch(connection, run_id, outcome)`: ACKNOWLEDGED for confirmed delivery,
-UNCERTAIN for ambiguous delivery, REJECTED only for a definite rejection. Never
-release reservations merely because a workflow request timed out. Repository
-APIs exist; a dedicated admission/dispatch operator CLI is not implemented yet.
+Manual full refresh: open Actions > Supermarket refresh > Run workflow, choose
+mode=refresh, leave run_id blank, and click Run workflow. The runner atomically
+admits all enabled active chains and immediately starts the normal worker. No
+local script, API request, UUID or separate operator token is required. Existing
+repository database/CA secrets are used automatically. If another run owns any
+requested chain, admission fails without starting collection or changing catalogs.
+
+The optional run_id input is reserved for an existing API-admitted run. When
+provided, the worker reads that run's authorized chain list without creating a
+second run. API dispatch remains {mode: "refresh", run_id: runId}. Ordinary GitHub
+full refresh does not depend on the API's pending integration fixes.
 
 ## Inspect and recover
 

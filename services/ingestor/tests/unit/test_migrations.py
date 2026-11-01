@@ -18,6 +18,12 @@ ROOT = Path(__file__).resolve().parents[4]
         ("password authentication failed", "DATABASE_AUTHENTICATION_FAILED", "credentials"),
         ("could not translate host name", "DATABASE_DNS_FAILED", "hostname"),
         ("connection timeout expired", "DATABASE_CONNECTION_TIMEOUT", "network"),
+        (
+            "connection failed: Network is unreachable",
+            "DATABASE_NETWORK_UNREACHABLE",
+            "session pooler",
+        ),
+        ("connection failed: No route to host", "DATABASE_NETWORK_UNREACHABLE", "session pooler"),
     ],
 )
 def test_connection_failure_has_actionable_safe_diagnostic(

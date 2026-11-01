@@ -128,3 +128,10 @@ workflow is registered. See [pilot procedure and evidence](pilot-results.md).
 Manual dispatch prerequisite: ci.yml with workflow_dispatch must exist on main
 before GitHub exposes Run workflow. It is currently only on the feature branch.
 Once registered on main, the branch selector can target feature/scraper-foundation.
+
+## One-click full refresh
+
+Choose Supermarket refresh > Run workflow, keep mode=refresh and leave run_id
+empty. The runner creates/reserves the database run and immediately collects and
+publishes all enabled chains. The optional run_id is only for API-admitted runs.
+An overlapping active run fails admission safely; no operator UUID is needed.

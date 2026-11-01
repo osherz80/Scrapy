@@ -78,6 +78,21 @@ def connection_failure_diagnostic(error: Exception) -> tuple[str, str]:
         return str(error), "Check DATABASE_SSLROOTCERT points to a CA file inside the project."
     if isinstance(error, psycopg.OperationalError):
         message = str(error).lower()
+        if any(
+            term in message
+            for term in (
+                "network is unreachable",
+                "no route to host",
+                "network unreachable",
+                "cannot assign requested address",
+            )
+        ):
+            return (
+                "DATABASE_NETWORK_UNREACHABLE",
+                "Runner cannot reach the database network. An IPv6-only Supabase direct "
+                "endpoint needs IPv6 connectivity; use the session pooler on port 5432 "
+                "for an IPv4-only runner.",
+            )
         if any(term in message for term in ("certificate verify failed", "root certificate")):
             return (
                 "DATABASE_TLS_VERIFICATION_FAILED",
