@@ -1,6 +1,7 @@
 """Internal XML reader. Callers must exhaust it before accepting any catalog."""
 
 import io
+import re
 from collections.abc import Iterator
 from xml.etree.ElementTree import ParseError
 
@@ -15,6 +16,7 @@ def iter_price_items(
     headers: dict[str, str],
     *,
     max_bytes: int = 100_000_000,
+    preserve_source: bool = False,
 ) -> Iterator[dict[str, str]]:
     if len(xml) > max_bytes:
         raise SourceError("SIZE_LIMIT")
@@ -46,9 +48,22 @@ def iter_price_items(
                 fields: dict[str, str] = {}
                 duplicate = False
                 for child in element:
-                    key = child.tag.rsplit("}", 1)[-1].lower()
+                    if preserve_source and (len(child) or child.attrib):
+                        raise SourceError("UNSUPPORTED_ITEM_STRUCTURE")
+                    name = child.tag.rsplit("}", 1)[-1]
+                    key = (
+                        re.sub(
+                            r"([a-z0-9])([A-Z])",
+                            r"\1_\2",
+                            re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name),
+                        ).lower()
+                        if preserve_source
+                        else name.lower()
+                    )
                     duplicate = duplicate or key in fields
-                    fields[key] = (child.text or "").strip()
+                    fields[key] = (
+                        (child.text or "") if preserve_source else (child.text or "").strip()
+                    )
                 if duplicate:
                     fields["__ambiguous_row__"] = "1"
                 element.clear()
