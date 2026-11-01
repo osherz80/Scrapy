@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 from ..chains import DEFERRED_CHAIN_IDS
 from ..config import Settings
+from ..logging.types import Logger
 from .http import BoundedClient
 from .roster import parse_filename, parse_roster
 from .stream import SourceError, decompress
@@ -49,7 +50,15 @@ class _Page(HTMLParser):
 
 
 class PublishedProvider:
-    def __init__(self, chain: str, settings: Settings, deadline: float, *, client=None):
+    def __init__(
+        self,
+        chain: str,
+        settings: Settings,
+        deadline: float,
+        logger: Logger | None = None,
+        *,
+        client=None,
+    ):
         if chain in DEFERRED_CHAIN_IDS:
             raise SourceError("SOURCE_DEFERRED")
         if chain not in _SOURCES or chain not in settings.enabled_chains:
@@ -67,6 +76,7 @@ class PublishedProvider:
                 timeout_seconds=settings.provider_timeout_seconds,
                 max_bytes=self._limit,
                 deadline=deadline,
+                logger=logger,
             )
         )
         self._client.deadline = min(self._client.deadline, deadline)

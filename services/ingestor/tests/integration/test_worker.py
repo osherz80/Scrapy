@@ -117,8 +117,8 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     run = admit_run(db, ("victory", "osher-ad"))
     sources = []
 
-    def factory(chain, settings, deadline):
-        assert chain in run.chains and deadline > 0
+    def factory(chain, settings, deadline, logger):
+        assert chain in run.chains and deadline > 0 and logger is not None
         assert db.execute(
             "SELECT status,started_at IS NOT NULL FROM public.refresh_run_chains "
             "WHERE run_id=%s AND chain_id=%s",

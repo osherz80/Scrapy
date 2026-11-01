@@ -22,7 +22,7 @@ from ..repository.recovery import finish_run, prune_runs
 from .ownership import LeaseGuard, OwnershipError
 
 type ConnectionFactory = Callable[[], psycopg.Connection]
-type ProviderFactory = Callable[[str, Settings, float], Provider]
+type ProviderFactory = Callable[[str, Settings, float, Logger], Provider]
 
 
 class _CheckedProvider:
@@ -155,7 +155,7 @@ def run_worker(
                         chain_started, source, result, failure = clock(), None, None, None
                         try:
                             check()
-                            source = provider_factory(chain, settings, deadline)
+                            source = provider_factory(chain, settings, deadline, chain_logger)
                             result = collect_chain(
                                 _CheckedProvider(source, check),
                                 chain_id=chain,
