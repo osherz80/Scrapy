@@ -34,7 +34,13 @@ class ProbeFile:
 
 
 class CandidateSource:
-    def __init__(self, chain: str, settings: Settings, deadline: float):
+    def __init__(
+        self,
+        chain: str,
+        settings: Settings,
+        deadline: float,
+        logger: Logger | None = None,
+    ):
         if chain in DEFERRED_CHAIN_IDS:
             raise SourceError("SOURCE_DEFERRED")
         try:
@@ -51,6 +57,7 @@ class CandidateSource:
             timeout_seconds=settings.provider_timeout_seconds,
             max_bytes=settings.provider_max_decompressed_bytes,
             deadline=min(deadline, monotonic() + 120),
+            logger=logger,
         )
         try:
             self._adapter = candidate.get_adapter(chain, client=self._client)
@@ -103,7 +110,7 @@ def run_probe(
         attempts = successes = failures = 0
         observed_branches: set[tuple[str, str, str]] = set()
         try:
-            source = CandidateSource(chain, settings, deadline)
+            source = CandidateSource(chain, settings, deadline, chain_logger)
             chain_logger.info("probe.listing.started", "Listing candidate full catalogs")
             files = iter(source.files())
             while attempts < max_branches:

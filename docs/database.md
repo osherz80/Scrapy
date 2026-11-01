@@ -37,15 +37,15 @@ use an ingestion-only login rather than administrator permissions.
 
 PUBLIC access to scraper tables/functions is revoked; public schema usage is
 retained. Existing `anon`/`authenticated`
-grants are explicitly revoked when those Supabase roles exist. Do not expose this
+grants are explicitly revoked when those Supabase roles exist. Do not expose these
 tables through the browser Data API. RLS is not used as a substitute for
 table and role privileges. Administrative/service secrets remain server-side.
 
 Current publication references protect their run records from deletion. Retention
 must preserve active leases/current catalogs and prune only unreferenced old runs.
-The scheduler date claim is unique. Database constraints enforce positive finite
-prices, 1..3 samples, coherent nullable package pairs, valid statuses and bounded
-operational JSON. Parameterized repositories must still enforce transitions,
+The scheduler date claim is unique. Database constraints enforce exact product
+identity, 1..3 samples, valid statuses and bounded operational JSON. XML item
+values are text and are not constrained as normalized prices/package pairs. Parameterized repositories must still enforce transitions,
 admission, ownership and fencing; those rules are not fully enforced by DDL.
 
 ## Explicit administration
@@ -159,14 +159,14 @@ DATABASE_URL sessions. Hosted validation remains separate.
 `repository.publication.publish_collection` consumes one immutable
 `ChainCollection` and its `RunOwnership`, using a dedicated idle autocommit
 connection. It validates distinct attempts/successes, counters, exact chain
-identity, aware source dates and already-rounded Decimal prices. It stages only
+identity, aware catalog source dates and source-text XML fields. It stages only
 that chain's parameter rows in memory; no raw files, database staging tables or
 additional TEMP/schema privileges are needed.
 
 The transaction locks the run, run-chain outcome and chain lease, verifies the
 fencing token/run/expiry/deadline, deletes the prior chain catalog, inserts all
 replacement rows, and updates chain metadata and the successful outcome. Exact
-string codes and true oldest/newest source dates are preserved. Absent products
+string codes and selected XML field values are preserved. Absent products
 are removed. A stale source date remains stale; ingestion time is separate.
 After writes, the transaction checks current database time against the locked
 lease again, then releases that chain's reservation. Expiry during a long insert
@@ -322,3 +322,50 @@ provisioning and actual hosted TLS verification remain launch gates.
 
 References: [PostgreSQL privileges](https://www.postgresql.org/docs/18/ddl-priv.html),
 [Psycopg transaction contexts](https://github.com/psycopg/psycopg/blob/master/docs/basic/transactions.rst).
+
+
+## XML storage revision: migration 003
+
+Migration 003 supersedes the older normalized product descriptions above. The
+current product contract is defined in SPEC section 7 and catalog-validation.md:
+ItemName->item_name, ManufactureName->manufacture_name, Quantity->quantity,
+UnitQty->unit_qty, ItemPrice->item_price, plus every other XML field. Source
+values are text. Missing fields are NULL and explicit empties are ''. Only
+ItemPrice is averaged; optional product values are not filtered/normalized.
+xml_fields preserves additional named retailer values. Operational sample_count,
+chain/run IDs, selected branch identity and ingestion time remain.
+
+Product compatibility_metadata/source_updated_at/newest_source_updated_at and
+normalized package/name/search fields no longer exist. Chain/run operational
+watermarks remain unchanged. The search/control API must be updated for this
+breaking storage contract before it can query the new schema.
+
+Run migration 003 only with the matching worker version. Existing rows retain
+known mapped values but previously discarded source fields require a refresh.
+The table is copied transactionally before replacing it; allow temporary storage
+headroom. Existing role boundaries are re-established, including explicit revokes
+for Supabase anon/authenticated default grants. No production migration was run
+as part of developing this revision.
+
+Legacy item_price_updated_at values are retained as their existing database text
+in price_update_time during migration. Their original XML lexical form cannot be
+reconstructed; a refresh replaces them with the exact XML text.
+
+
+## Token-only search correction: migration 004
+
+Remove exactly item_nm and xml_fields. Restore name_tokens text[] and its GIN
+index, backfilling existing rows with the established tokenizer rules. No
+normalized_name column is added and item_name is never overwritten. New refreshes
+calculate only name_tokens alongside source values. The Unicode-neutral ICU
+collation und-x-icu is used for the SQL backfill; parity fixtures cover Unicode
+case handling, whitespace, punctuation and decimal points.
+
+## Canonical XML columns: migration 005
+
+Remove manufacturer_name and bls_weighted. Merge price_update_date into
+price_update_time and remove the duplicate date column. Before dropping aliases,
+copy their values only where the canonical manufacture_name/b_is_weighted/
+price_update_time value is NULL. Existing canonical values (including empty
+strings) win. Parser aliases use the same canonical names without transforming
+values. Original item_name, name_tokens and all other columns are unchanged.

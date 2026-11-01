@@ -1,6 +1,11 @@
+import io
+import json
+
 import httpx
 import pytest
 
+from ingestor.logging import create_logger
+from ingestor.logging.transports import ConsoleTransport
 from ingestor.providers.http import BoundedClient
 from ingestor.providers.stream import SourceError
 
@@ -27,6 +32,39 @@ def test_client_does_not_retry_failure_or_echo_source_url():
             source.get("https://source.test/file?token=synthetic-secret")
         assert len(calls) == 1
         assert "synthetic-secret" not in str(error.value)
+
+
+def test_http_failure_logs_host_path_status_and_elapsed_without_query():
+    stream = io.StringIO()
+
+    def handler(_):
+        return httpx.Response(403, content=b"blocked")
+
+    with client(handler, logger=create_logger(transport=ConsoleTransport(stream))) as source:
+        with pytest.raises(SourceError, match="HTTP_403"):
+            source.get("https://source.test/Prices?t=3&p=1&token=synthetic-secret")
+    record = json.loads(stream.getvalue())
+    fields = record["fields"]
+    assert record["event"] == "http.request_failed"
+    assert fields["method"] == "GET"
+    assert fields["host"] == "source.test"
+    assert fields["path"] == "/Prices"
+    assert fields["status"] == 403
+    assert type(fields["elapsed_ms"]) is int
+    assert fields["error_code"] == "HTTP_403"
+    assert "synthetic-secret" not in stream.getvalue()
+    assert "?" not in stream.getvalue()
+
+
+def test_successful_request_emits_no_request_log():
+    stream = io.StringIO()
+
+    with client(
+        lambda _: httpx.Response(200, content=b"ok"),
+        logger=create_logger(transport=ConsoleTransport(stream)),
+    ) as source:
+        assert source.get("https://source.test/file").content == b"ok"
+    assert stream.getvalue() == ""
 
 
 def test_byte_budget_rejects_whole_response():

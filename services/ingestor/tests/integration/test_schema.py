@@ -21,11 +21,9 @@ def seed_run(db):
 
 def insert_product(db, run_id, *, code="001234", price="10.9000", sample_count=1):
     db.execute(
-        """INSERT INTO public.products(
-        chain_id, item_code, name, price, is_weighted, sample_count, source_updated_at,
-        newest_source_updated_at, run_id, normalized_name, name_tokens
-    ) VALUES ('rami-levy', %s, 'Example', %s, false, %s, now(), now(), %s, 'example', %s)""",
-        (code, price, sample_count, run_id, ["example"]),
+        "INSERT INTO public.products(chain_id,item_code,item_name,item_price,b_is_weighted,"
+        "sample_count,run_id) VALUES ('rami-levy',%s,'Example',%s,'0',%s,%s)",
+        (code, price, sample_count, run_id),
     )
 
 
@@ -63,11 +61,10 @@ def test_exact_codes_preserve_leading_zeros_and_required_indexes_exist(db):
 
 
 @pytest.mark.parametrize("price", ["0", "-1", "NaN", "Infinity", "10000000000"])
-def test_nonpositive_nonfinite_or_out_of_range_prices_are_rejected_by_postgres(db, price):
+def test_unusual_source_price_text_is_stored_without_filtering(db, price):
     run_id = seed_run(db)
-    with pytest.raises((psycopg.errors.CheckViolation, psycopg.errors.NumericValueOutOfRange)):
-        with db.transaction():
-            insert_product(db, run_id, price=price)
+    insert_product(db, run_id, price=price)
+    assert db.execute("SELECT item_price FROM public.products").fetchone() == (price,)
 
 
 @pytest.mark.parametrize("count", [0, 4])
@@ -154,12 +151,13 @@ def test_control_admission_rejects_invalid_chain_sets_at_the_database_boundary(d
             )
 
 
-def test_package_columns_cannot_mix_unknown_and_known_conversion_pairs(db):
+def test_optional_quantity_unit_values_are_independent_source_text(db):
     run_id = seed_run(db)
     insert_product(db, run_id)
-    with pytest.raises(psycopg.errors.CheckViolation):
-        with db.transaction():
-            db.execute("UPDATE public.products SET source_quantity=60, source_unit_qty='ml'")
+    db.execute("UPDATE public.products SET quantity='60.00',unit_qty='',qty_in_package='12'")
+    assert db.execute(
+        "SELECT quantity,unit_qty,qty_in_package FROM public.products"
+    ).fetchone() == ("60.00", "", "12")
 
 
 def test_supabase_style_anonymous_default_grants_are_removed(unmigrated_db):
@@ -175,6 +173,7 @@ def test_supabase_style_anonymous_default_grants_are_removed(unmigrated_db):
         GRANT ALL ON TABLES TO anon, authenticated""")
     db.execute((root / "db/migrations/001_ingestion.sql").read_text(encoding="utf-8"))
     db.execute((root / "db/migrations/002_public_schema.sql").read_text(encoding="utf-8"))
+    db.execute((root / "db/migrations/003_xml_item_fields.sql").read_text(encoding="utf-8"))
     for role in ("anon", "authenticated"):
         assert not db.execute(
             "SELECT has_table_privilege(%s,'public.products','SELECT')", (role,)

@@ -3,25 +3,35 @@
 import json
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal
 from time import monotonic
 
 import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.types.json import Jsonb
 
-from ..aggregation import average_price
 from ..collection import ChainCollection
 from ..logging.types import Logger
-from ..providers.stream import SourceError
+from ..normalization import tokenize
 from ..runs.ownership import OwnershipError, RunOwnership
+from ..xml_items import XML_COLUMNS, XmlProduct
 from .admission import _timeouts
 
+_INSERT_COLUMNS = (
+    "chain_id",
+    *XML_COLUMNS,
+    "sample_count",
+    "subchain_id",
+    "store_id",
+    "name_tokens",
+    "updated_at",
+    "run_id",
+)
 _INSERT = (
-    "INSERT INTO public.products (chain_id,item_code,name,manufacturer,currency,price,"
-    "package_quantity,package_unit,source_quantity,source_unit_qty,item_price_updated_at,"
-    "is_weighted,sample_count,source_updated_at,newest_source_updated_at,normalized_name,"
-    "name_tokens,updated_at,run_id) VALUES (" + ",".join(["%s"] * 19) + ")"
+    "INSERT INTO public.products ("
+    + ",".join(_INSERT_COLUMNS)
+    + ") VALUES ("
+    + ",".join(["%s"] * len(_INSERT_COLUMNS))
+    + ")"
 )
 
 
@@ -70,46 +80,32 @@ def _prepare(collection: ChainCollection):
     ]
     if len(json.dumps(sampled, ensure_ascii=False).encode("utf-8")) > 4096:
         raise PublicationError("INVALID_PUBLICATION")
+    if result.products and not _aware(result.source_updated_at):
+        raise PublicationError("INVALID_PUBLICATION")
     rows = []
     for product in result.products:
         if (
-            product.chain_id != result.chain_id
+            not isinstance(product, XmlProduct)
+            or product.chain_id != result.chain_id
             or type(product.sample_count) is not int
             or not 1 <= product.sample_count <= len(successful)
-            or type(product.is_weighted) is not bool
-            or not isinstance(product.price, Decimal)
-            or not _aware(product.source_updated_at)
-            or not _aware(product.newest_source_updated_at)
-            or (
-                product.item_price_updated_at is not None
-                and not _aware(product.item_price_updated_at)
+            or product.selected_branch not in successful
+            or not isinstance(product.fields, dict)
+            or any(
+                not isinstance(k, str) or not isinstance(v, str) for k, v in product.fields.items()
             )
+            or product.fields.get("item_code") != product.item_code
+            or not product.item_code
         ):
             raise PublicationError("INVALID_PUBLICATION")
-        try:
-            if average_price((product.price,)) != product.price:
-                raise PublicationError("INVALID_PUBLICATION")
-        except SourceError:
-            raise PublicationError("INVALID_PUBLICATION") from None
         rows.append(
             (
                 product.chain_id,
-                product.item_code,
-                product.name,
-                product.manufacturer,
-                product.currency,
-                product.price,
-                product.package_quantity,
-                product.package_unit,
-                product.source_quantity,
-                product.source_unit_qty,
-                product.item_price_updated_at,
-                product.is_weighted,
+                *(product.fields.get(c) for c in XML_COLUMNS),
                 product.sample_count,
-                product.source_updated_at,
-                product.newest_source_updated_at,
-                product.normalized_name,
-                list(product.name_tokens),
+                product.selected_branch.subchain_id,
+                product.selected_branch.store_id,
+                list(tokenize(product.fields.get("item_name", ""))),
             )
         )
     return rows, Jsonb(sampled)
@@ -147,6 +143,30 @@ def _lock_chain(connection, owner, chain_id):
     return run[2], _check_lease(connection, owner, chain_id, run[2])
 
 
+def _extend_lease(connection, owner, chain_id, run_started_at, now, lease_seconds):
+    """Refresh the lease inside the publication transaction.
+
+    A bulk insert can outlive the heartbeat interval while holding the lease row
+    lock, so the heartbeat cannot renew it. Extending here keeps the lease valid
+    for the insert without weakening the final fencing check.
+    """
+    expires_at = min(
+        owner.deadline,
+        run_started_at + timedelta(minutes=45),
+        now + timedelta(seconds=lease_seconds),
+    )
+    if expires_at <= now:
+        raise OwnershipError("RUN_DEADLINE_EXCEEDED")
+    updated = connection.execute(
+        "UPDATE public.chain_leases SET heartbeat_at=%s,expires_at=%s "
+        "WHERE chain_id=%s AND run_id=%s AND owner_token=%s RETURNING expires_at",
+        (now, expires_at, chain_id, owner.run_id, owner.token),
+    ).fetchone()
+    if updated is None or updated[0] <= now:
+        raise OwnershipError("LEASE_LOST")
+    return now
+
+
 def start_chain(connection: psycopg.Connection, owner: RunOwnership, chain_id: str) -> None:
     """Record actual collection start only while ownership is valid."""
     if not connection.autocommit or connection.info.transaction_status != TransactionStatus.IDLE:
@@ -168,6 +188,7 @@ def publish_collection(
     *,
     logger: Logger | None = None,
     failure_code: str | None = None,
+    lease_seconds: int = 300,
 ) -> bool:
     """Stage one chain in memory, then atomically replace or preserve its catalog.
 
@@ -180,6 +201,8 @@ def publish_collection(
     if logger:
         logger = logger.child(run_id=str(owner.run_id), chain_id=result.chain_id)
     try:
+        if type(lease_seconds) is not int or not 1 <= lease_seconds <= 300:
+            raise PublicationError("INVALID_PUBLICATION")
         if (
             not connection.autocommit
             or connection.info.transaction_status != TransactionStatus.IDLE
@@ -197,6 +220,9 @@ def publish_collection(
         with connection.transaction():
             _timeouts(connection)
             run_started_at, now = _lock_chain(connection, owner, result.chain_id)
+            now = _extend_lease(
+                connection, owner, result.chain_id, run_started_at, now, lease_seconds
+            )
             if result.can_publish:
                 connection.execute(
                     "DELETE FROM public.products WHERE chain_id=%s", (result.chain_id,)

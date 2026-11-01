@@ -1,0 +1,14 @@
+<Root><ChainId>7290000000000</ChainId><SubChainId>001</SubChainId><StoreId>001</StoreId><Items><Item>
+<PriceUpdateTime>2024-03-14T12:55:50.000</PriceUpdateTime>
+<ItemCode>7290119371129</ItemCode>
+<LastSaleDateTime>2026-10-31T15:06:12.000</LastSaleDateTime>
+<ItemType>1</ItemType><ItemName>חטיף חלבון פרו שוקול</ItemName>
+<ManufactureName>MIESZKO S.A - MS. JO</ManufactureName>
+<ManufactureCountry>לא ידוע</ManufactureCountry>
+<ManufactureItemDescription>חטיף חלבון פרו שוקולד לבן עוגיות 60 גר</ManufactureItemDescription>
+<UnitQty>גרם</UnitQty><Quantity>60.00</Quantity>
+<UnitOfMeasure>100 גרם</UnitOfMeasure><bIsWeighted>0</bIsWeighted>
+<QtyInPackage>12</QtyInPackage><ItemPrice>12.90</ItemPrice>
+<UnitOfMeasurePrice>21.50</UnitOfMeasurePrice>
+<AllowDiscount>1</AllowDiscount><ItemStatus/>
+</Item></Items></Root>

@@ -11,7 +11,7 @@ Follow [configuration](configuration.md), then from the repository root:
 
 check-config validates settings without opening a database connection. Migration
 status connects and checks checksums without changing schema or data. Versions
-001 and 002 should be present. All seven tables are in public. An operator runs
+001, 002 and 003 should be present for the XML-field worker. All seven tables are in public. An operator runs
 `python -m ingestor.repository.migrate apply` explicitly when new reviewed SQL
 is ready. Ordinary worker jobs never run migrations.
 
@@ -95,3 +95,11 @@ DATABASE_CONNECTION_TIMEOUT: inspect runner connectivity and database availabili
 Source HTTP/roster/parser failures: inspect the static per-chain code and pilot
 evidence. Do not weaken TLS, parser validation, timeouts or branch classification
 to force a run through. See [database details](database.md).
+
+## XML-field worker rollout
+
+Migration 003 is required by this branch. Apply it with the matching code before
+refreshing, then run a full refresh to recover source fields missing from earlier
+normalized rows. Never run the older worker after applying 003. The API must
+replace its old product SQL/field mappings and own normalization/search derivation.
+No production migration is implied by merging documentation.

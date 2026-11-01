@@ -26,7 +26,7 @@ Chain IDs are stable public identifiers:
 | tiv-taam | Tiv Taam |
 | keshet-teamim | Keshet Teamim |
 
-Every daily run randomly selects three distinct branches per chain anew. Use latest available PriceFull files only. No deltas, promotions, price history, raw-file retention, or branch-price persistence. Store one current row per product per chain, with its sampled arithmetic mean in `price`. Re-randomization may change an estimate without any underlying branch price change.
+Every daily run randomly selects three distinct branches per chain anew. Use latest available PriceFull files only. No deltas, promotions, price history, raw-file retention, or branch-price persistence. Store one current row per product per chain, with its sampled arithmetic mean in `item_price`. Re-randomization may change an estimate without any underlying branch price change.
 
 Operational deferral (user decision, 2026-10-30): retain all ten public IDs, but
 defer Carrefour and Shufersal source recovery. Default collection currently uses
@@ -69,76 +69,103 @@ These complete previously unspecified details; they are design defaults, not add
 1. Establish a run and reserve its chain set as described below. Load chain configuration and provider mappings.
 2. List branches and full-price files. Parse branch identity from source metadata; use `(chain, subchain, store)` internally, never store number alone. Randomly shuffle eligible distinct branches once per chain/run; retain selected IDs in operational metadata for diagnosis, not branch prices.
 3. For each of three slots, attempt the next unattempted branch. Download its latest complete PriceFull; parse and validate entirely before counting success. If it fails, use up to two replacement branches. Never retry an already attempted branch in another slot, or count a successful branch twice. If candidates are exhausted, stop attempting that slot. A chain with fewer than three eligible branches uses those available.
-4. Parse from a network stream or transient memory only. Never write raw files to disk, CI artifacts, logs, caches, or database. If a library's default writes files, replace/configure that behavior before using it. A normalized in-memory aggregate is allowed.
+4. Parse from a network stream or transient memory only. Never write raw files to disk, CI artifacts, logs, caches, or database. If a library's default writes files, replace/configure that behavior before using it. An in-memory item collection is allowed.
 5. Aggregate all successfully parsed branch catalogs. One branch contributes at most one observation per product. Do not merge an unsuccessful branch's partial parse into totals.
 6. If one or more branches succeeded, validate the final rows and replace the chain's entire current catalog atomically. Products missing from this run disappear. A product present in only one successful branch is stored at that price with sampleCount=1. Missing observations are never zero-priced observations.
 7. If no branch succeeded, leave its current catalog untouched and record failure. Other chains may publish successfully.
-8. Finalize statuses and release reservations. Always retain true source dates separately from ingestion times.
+8. Finalize statuses and release reservations. Retain catalog source dates in operational metadata separately from ingestion times.
 
 Downloading a previously seen latest full file is allowed; no daily incremental replay exists. Old source dates remain visible. If a publication would regress a chain's conservative source watermark below its current watermark, mark it stale in operational reporting; do not invent a newer date. The user chose latest available samples, not a historical time series.
 
-## 6. Product identity, metadata, and averages
+## 6. XML item values and averages (user revision 2026-11-01)
 
-Preserve item codes as strings, including leading zeros. Within a chain use the exact published item code as the initial identity. Never use fuzzy names to group prices. Barcode validation may provide a separate canonical GTIN for future use, but must not rewrite exact SKU behavior.
+Keep one current row per exact (chain_id,item_code). Continue selecting up to
+three branches using the existing bounded sampling/replacement policy. Preserve
+all item field values; do not trim names, normalize units, convert XML timestamps,
+coerce weighted flags, reject products for price/name/optional fields, or remove
+products because branch packages differ. No name guessing or fuzzy barcode joins.
 
-Before combining observations, require compatible weighted/sold-by-unit flags, normalized package quantity, and unit of measure. Normalize equivalent units (e.g. 1000 ml and 1 l). Use published quantity/unit fields rather than guessing from names. If one internal code has incompatible packaging or materially conflicting identity across sampled branches, exclude that product from this run and record a conflict count; do not average unlike items. No density conversion between mass and volume.
+The user explicitly retained price averaging. For a barcode observed in multiple
+branches, average finite decimal ItemPrice contributions using Decimal and round
+once to four places with ROUND_HALF_UP. Each branch contributes at most once.
+A single observation retains its original ItemPrice text. If prices cannot all
+be averaged safely (missing/nonnumeric/nonfinite/excessive numeric dimensions),
+retain the selected branch's original value instead of filtering the product.
+Zero and negative XML values are retained. sample_count counts distinct branch
+observations, not attempts. Duplicate barcodes within a branch select the first
+XML occurrence and are counted; never double-count a branch's price.
 
-Require a finite positive ILS price; reject negative, zero, NaN, or invalid values. Use Decimal arithmetic; calculate sum/count and round only once to four decimal places, ROUND_HALF_UP. `sample_count` is the actual number of successful distinct branch observations for this product (1–3), not the number of branches attempted.
+Select ALL nonprice fields together from the newest catalog publication, then
+ascending composite branch identity for a deterministic tie-break. Record its
+subchain_id/store_id. UnitOfMeasurePrice is copied as published; it is not
+recalculated to match the averaged ItemPrice. Missing fields become SQL NULL;
+explicit empty elements remain empty strings. Preserve lexical values including
+Quantity='60.00', whitespace and PriceUpdateTime='2024-03-14T12:55:50.000'.
 
-For descriptive name/manufacturer differences on otherwise compatible items, select metadata from the newest item observation, then deterministic branch-ID order as tie-break. Unknown optional fields are null. Do not invent package dimensions. Unit-price fields are computed from the averaged price and compatible normalized package information; never copy a single branch's unit price alongside the averaged package price.
-
-`source_updated_at` is the oldest contributing catalog publication timestamp for that product, conservatively showing its age. Preserve the newest contributing timestamp separately. All persisted times are timestamptz/UTC; interpret source-local dates using Asia/Jerusalem. Invalid/absent publication timestamps make the branch invalid unless a verified provider listing supplies that timestamp.
+Security and structural validation remain: prohibit DTD/entities/external access;
+validate complete-document EOF, source/branch identity and bounded downloads.
+A missing barcode or ambiguous/unsupported XML field structure fails the whole
+branch with a static diagnostic instead of silently omitting data. This is not
+price/package/name validation. Source catalog publication timestamps remain
+internal selection/operational metadata, not product XML fields.
 
 ## 7. Shared database contract (owned here)
 
-### 7.1 Audited XML field storage contract
+All tables live in public. Credentials remain server-side. Keep separate search,
+control and ingestion permission groups; moving fields does not grant browser
+roles access. Migrations 001/002 remain immutable. Migration 003 changes products.
 
-Audit of current Neuton consumers (2026-10-30): `Neuton-Back/src/lib/supermarket/prices.ts` reads ItemCode/ItemName/ManufactureName for scoring and exact enrichment; `conversion.ts` reads UnitQty and Quantity for unit/amount conversion; `productConversion.ts` validates ItemPrice, Quantity, ItemCode, and ItemName, then derives a base-unit cost; `recipePriceFallback.ts` reads the same fields plus chain/score for selection and stable ties. `recipeBarcodePrice.ts` uses that conversion path. No current business consumer was found for the other XML fields beyond parsing them into the typed result. Parsing/type membership alone does not make a field necessary to persist.
+XML columns use snake_case names and text values:
 
-| XML field | Required storage / treatment | Current Neuton use |
-|---|---|---|
-| ItemCode | `item_code` text; preserve leading zeros | Exact lookup, scoring, SKU persistence and stable tie |
-| ItemName | `name` text, trimmed without destructive rewriting; normalized copy separately | Search, enrichment, ingredient/product name |
-| ManufactureName | `manufacturer` nullable text | Manufacturer scoring bonus |
-| ItemPrice | `price` numeric: sampled mean, never arbitrary representative price | Package-price input to base-unit cost calculation |
-| UnitQty | `source_unit_qty` text from the selected compatible observation | Unit recognition in setUnitsData; do not substitute UnitOfMeasure |
-| Quantity | `source_quantity` positive numeric from that SAME observation | Package amount; pairs with source_unit_qty |
-| PriceUpdateTime | `item_price_updated_at` nullable timestamptz from selected metadata observation | Not currently consumed; preserve item change time separately from catalog freshness |
-| bIsWeighted | `is_weighted` boolean; validate during reconciliation | Ingestion safety; not currently read by Neuton conversion |
-| UnitOfMeasure | Parse transiently as declared comparison-price basis; optionally derive API value from canonical units | Not currently consumed; not the package unit field |
-| UnitOfMeasurePrice | Do not store raw branch value; derive from average when its basis is known | Not currently consumed |
-| QtyInPackage | Parse transiently for package-identity checks where its provider semantics are verified; 0 is not a zero-size package | Not currently consumed |
-| ItemType | Parse transiently to distinguish publisher item-code semantics where verified | Not currently consumed directly |
-| ManufactureCountry | Not persisted in v1 | Parsed only |
-| ManufactureItemDescription | Not persisted in v1; do not substitute silently for ItemName | Parsed only |
-| LastSaleDateTime | Not persisted; never a freshness timestamp | Parsed only, branch-specific |
-| AllowDiscount | Not persisted; never assert chain-average discount eligibility | Parsed only |
-| ItemStatus | Interpret transiently only using verified provider semantics; empty means unknown | Parsed only; never infer unavailable from an empty tag |
-
-Persist BOTH normalized `package_quantity`/`package_unit` and the coherent selected `source_quantity`/`source_unit_qty` pair. These are explicit columns, not unspecified JSON. For example, a 1 litre and a 1000 millilitre observation can be compatible, but returning Quantity=1 with UnitQty=millilitre would be wrong. Select both source fields from the same observation and test their base-unit amount against the normalized package amount. Other compatibility metadata may contain only bounded ingestion-required normalized attributes, not copies of all source fields.
-
-Missing/nonpositive Quantity or unrecognized UnitQty must not be guessed from the name. Retain such items for search only if price and identity are valid, with nullable conversion fields; API returns empty legacy conversion strings and current Neuton normalizeProductPrice rejects them safely. Count these cases in diagnostics. A valid catalog must contain at least one price/identity-valid item. Only aggregate observations with consistent known packaging; if package information is unknown, aggregate only when available source packaging signatures agree, otherwise exclude the ambiguous product.
-
-Example regression fixture from the supplied XML: ItemCode `11210000094`, ItemName `רוטב טבסקו 60 מ"ל`, ManufactureName `מקאילהייני קו`, source_unit_qty `מיליליטר`, source_quantity 60, normalized package 60 ml. With one observation price is 10.9000, sample_count=1. API Quantity="60", UnitQty="מיליליטר", ItemPrice="10.9000" must produce baseUnit=ml, baseUnitAmount=60.000, baseUnitCost=0.181667 ILS/ml in Neuton. UnitOfMeasure="100 מיליליטר" is a comparison basis, NOT a 100 ml package; its derived price is about 18.17 ILS per 100 ml. The second SKU `11210007253` remains a separate row despite similar name and equal price. QtyInPackage=0 and empty ItemStatus/ManufactureCountry must not invalidate this fixture.
-
-PriceUpdateTime in the example is May while LastSaleDateTime is October. Neither determines how recently the full catalog was published. `source_updated_at` continues to use contributing catalog publication times. Preserve item_price_updated_at separately, so a recently published catalog can legitimately contain a price unchanged since May.
-
-Use migrations, not dashboard-only manual edits. Tables in a private application schema; no anonymous/browser access. Separate read-only API search role, API control role, and ingestion writer role. Credentials remain server-side.
-
-| Table | Required columns / constraints |
+| XML | Database column |
 |---|---|
-| chains | id text PK, display_name, enabled, current_run_id nullable, catalog_updated_at nullable, source_updated_at nullable, product_count default 0 |
-| products | chain_id FK, item_code text, name, manufacturer nullable, currency='ILS', price numeric(14,4)>0, package_quantity numeric nullable, package_unit text nullable, source_quantity numeric nullable, source_unit_qty text nullable, item_price_updated_at timestamptz nullable, is_weighted bool, sample_count int 1..3, source_updated_at, newest_source_updated_at, updated_at, run_id, normalized_name, name_tokens text[], compatibility_metadata jsonb; PK(chain_id,item_code) |
-| refresh_runs | id UUID PK, origin SCHEDULED/MANUAL, status PENDING/RUNNING/SUCCEEDED/PARTIAL_FAILED/FAILED, requested_chains text[], created_at, started_at nullable, finished_at nullable, github_run_id nullable, dispatch_state, error_code nullable |
-| refresh_run_chains | PK(run_id,chain_id), status PENDING/RUNNING/SUCCEEDED/FAILED, attempt_count, successful_branch_count, sampled_branch_ids jsonb, product_count, invalid_row_count, conflict_count, source_updated_at nullable, error_code/message nullable, started_at/finished_at |
-| chain_leases | chain_id PK, run_id, owner_token UUID, expires_at, heartbeat_at |
-| schedule_claims | local_date date PK, run_id; ensures one scheduled run per Israel-local day |
+| PriceUpdateTime | price_update_time |
+| ItemCode | item_code |
+| LastSaleDateTime | last_sale_date_time |
+| ItemType | item_type |
+| ItemName | item_name |
+| ManufactureName | manufacture_name |
+| ManufactureCountry | manufacture_country |
+| ManufactureItemDescription | manufacture_item_description |
+| UnitQty | unit_qty |
+| Quantity | quantity |
+| UnitOfMeasure | unit_of_measure |
+| bIsWeighted | b_is_weighted |
+| QtyInPackage | qty_in_package |
+| ItemPrice | item_price |
+| UnitOfMeasurePrice | unit_of_measure_price |
+| AllowDiscount | allow_discount |
+| ItemStatus | item_status |
 
-Compatibility metadata is a bounded set of fields needed by the existing Neuton response adapter, not raw XML or branch observation history. The API spec defines that adapter. Product rows hold current state only. Operational runs/branch IDs may be retained 30 days, then pruned; never remove an active run.
+Alternate XML ManufacturerName/blsWeighted/PriceUpdateDate values map into
+manufacture_name/b_is_weighted/price_update_time respectively, without changing
+the values. Migration 005 merges existing aliases into NULL canonical columns
+and removes manufacturer_name/bls_weighted/price_update_date. IsWeighted retains
+its existing column; no other schema changes are part of this correction.
+Migration 004 removes item_nm and xml_fields. No normalized_name column is added.
+The name_tokens text[] search column is derived separately from item_name using
+the existing tokenizer, with a GIN index. Original item_name text remains unchanged.
+Products retain chain_id, sample_count, selected subchain_id/store_id, updated_at
+and run_id as operational context. PK is (chain_id,item_code); run/chain FKs
+continue to protect publication references. Product source_updated_at,
+newest_source_updated_at and compatibility_metadata are removed. Normalized
+package/name columns are removed; name_tokens remains for searching.
 
-Indexes: products item_code B-tree for cross-chain exact searches; GIN on normalized name tokens for recall-safe token lookup; optional pg_trgm name index only after measured need. Primary key supports chain replacement. Timestamp/status indexes only for actual status queries. Measure table plus index size and refresh headroom against the account's actual Supabase limit.
+Other tables (chains, refresh_runs, refresh_run_chains, chain_leases,
+schedule_claims, schema_migrations) retain their existing coordination/fencing
+contracts. Operational chain/run source watermarks remain for status reporting.
 
-For publication, begin a transaction, lock and verify the chain lease/fencing owner, stage validated normalized aggregates temporarily, delete old chain rows, insert replacement rows, update chains and run-chain status, commit. Roll back on any failure. Readers must not observe a partially replaced chain. Batch search uses one read snapshot. Avoid staging all ten catalogs simultaneously. Parameterized SQL only.
+Migration 003 copies known existing values without deleting existing products.
+It cannot reconstruct XML fields/lexical details previously discarded; those need
+a fresh scrape. The legacy rollback only succeeds for data representable by the
+old typed schema; failure leaves the new table and migration ledger untouched.
+All unknown original field values are retained in the legacy JSON column on a
+successful rollback. Back up before administrative rollback.
+
+Publication still locks and fences the run/chain/lease, atomically replaces one
+chain catalog and updates its status/pointer. Failed chains keep old catalogs.
+No partial catalog is exposed; no raw XML documents are written to logs/artifacts.
+The stored item values are source data rather than normalized search records.
 
 ## 8. Dispatch, overlap, scheduling, and recovery
 
@@ -175,15 +202,10 @@ python -m ingestor.cli scheduled --timezone Asia/Jerusalem
 python -m ingestor.cli probe --chains shufersal,carrefour,rami-levy --max-branches 1
 ```
 
-Explicit typed Python, snake_case internally, small provider adapters, context-managed connections, structured JSON logs. Example style:
-```python
-def average_price(prices: list[Decimal]) -> Decimal:
-    if not prices or any(price <= 0 for price in prices):
-        raise ValueError("At least one positive price is required")
-    return (sum(prices, Decimal(0)) / len(prices)).quantize(
-        Decimal("0.0001"), rounding=ROUND_HALF_UP
-    )
-```
+Explicit typed Python, snake_case internally, small provider adapters,
+context-managed connections and structured JSON logs. XML item values are kept as
+source text. Decimal arithmetic applies only to sampled ItemPrice averaging,
+as defined in section 6. Consumer normalization belongs outside this worker.
 
 Configuration: DATABASE_URL, provider timeout/size limits, REFRESH_STALE_HOURS=48, RUN_LEASE_SECONDS=300, RUN_TIMEOUT_MINUTES=45, enabled chain mapping, LOG_PROVIDER=console, LOG_LEVEL=info, LOG_ENV, and APP_VERSION (falling back to the Git commit SHA). Secrets never logged. Store health/attempt/error counts without product dumps or source credential query strings.
 
@@ -211,7 +233,7 @@ Logging tests must verify JSON console output, level filtering, bound run/chain 
 
 PostgreSQL integration tests prove transactional replacement, removal of absent products, one-branch publication, zero-branch preservation, duplicate dispatch, simultaneous admission, expired-worker fencing, rollback, and batch visibility. Inject crashes before/after publication and dispatch uncertainty. Test nine-attempt ceiling and exhaustion with fewer branches. Keep HTTP library retry behavior inside the defined attempt budget.
 
-Success: ten configured providers evaluated from hosted infrastructure; reachable providers produce verified catalog rows; unavailable chains report failures honestly. Every successful product has 1..3 observations, correct unit metadata, and true source dates. No raw files or branch prices persist. A refresh publishes valid partial collection after replacements fail. No run overwrites a newer owner. Database including indexes and transient publication work fits the chosen free allowance. Record actual measured sizes rather than relying on conversation estimates.
+Success: ten configured providers evaluated from hosted infrastructure; reachable providers produce verified catalog rows; unavailable chains report failures honestly. Every stored product has 1..3 observations and the selected XML item values; catalog source dates remain in operational metadata. No raw files or branch prices persist. A refresh publishes valid partial collection after replacements fail. No run overwrites a newer owner. Database including indexes and transient publication work fits the chosen free allowance. Record actual measured sizes rather than relying on conversation estimates.
 
 ## 11. Implementation plan
 

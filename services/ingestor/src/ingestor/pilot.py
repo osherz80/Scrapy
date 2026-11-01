@@ -30,7 +30,7 @@ def run_pilot(chains, settings, logger, provider_factory, *, clock=monotonic):
         chain_started = clock()
         try:
             check()
-            source = provider_factory(chain, settings, deadline)
+            source = provider_factory(chain, settings, deadline, logger.child(chain_id=chain))
             result = collect_chain(
                 source, chain_id=chain, settings=settings, logger=logger, check=check
             )

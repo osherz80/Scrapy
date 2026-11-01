@@ -228,3 +228,22 @@ recovery and remaining launch gates.
 Manual full refresh: Actions > Supermarket refresh > Run workflow > mode=refresh,
 leave run_id blank. The runner admits the run automatically and publishes through
 the normal worker. Existing API-created runs can still supply optional run_id.
+
+## XML item storage revision
+
+The `fix/preserve-xml-item-fields` branch requires migration 003. It stores XML
+fields under snake_case names as source text; only ItemPrice is averaged across
+branches. No product normalization or optional-value filtering runs in this path.
+The three requested metadata columns and normalized product aliases are removed.
+See [storage correction plan](tasks/xml-storage-plan.md) and spec sections 6-7.
+The API must be aligned to this new schema. Supabase migration 003 was applied explicitly on 2026-11-01; all 87,186 existing
+rows were preserved. Use this matching worker branch until it is merged to main.
+
+Migration 004 is now applied: item_nm/xml_fields removed; name_tokens and its GIN
+index restored. Original item_name values are unchanged; normalized_name is not
+a stored column. Future refreshes write search tokens alongside the XML fields.
+
+Migration 005 applied: manufacturer_name/bls_weighted/price_update_date removed;
+source aliases map to manufacture_name/b_is_weighted/price_update_time. Existing
+alternate values were preserved in canonical columns where needed. All 100,295
+products and name_tokens were verified preserved.

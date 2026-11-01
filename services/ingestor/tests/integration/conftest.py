@@ -39,6 +39,15 @@ def db(unmigrated_db):
     unmigrated_db.execute(
         (ROOT / "db/migrations/002_public_schema.sql").read_text(encoding="utf-8")
     )
+    unmigrated_db.execute(
+        (ROOT / "db/migrations/003_xml_item_fields.sql").read_text(encoding="utf-8")
+    )
+    unmigrated_db.execute(
+        (ROOT / "db/migrations/004_restore_search_tokens.sql").read_text(encoding="utf-8")
+    )
+    unmigrated_db.execute(
+        (ROOT / "db/migrations/005_remove_duplicate_xml_columns.sql").read_text(encoding="utf-8")
+    )
     return unmigrated_db
 
 

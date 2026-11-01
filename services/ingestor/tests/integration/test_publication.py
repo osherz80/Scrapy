@@ -1,55 +1,84 @@
 import io
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from time import sleep
 from uuid import uuid4
 
 import psycopg
 import pytest
 
-from ingestor.aggregation import aggregate_catalogs
 from ingestor.collection import ChainCollection
 from ingestor.logging import create_logger
 from ingestor.logging.transports import ConsoleTransport
-from ingestor.models import ParsedCatalog, ProductObservation
 from ingestor.providers.types import BranchIdentity
 from ingestor.repository.admission import admit_run
 from ingestor.repository.migrate import apply_migrations, load_migrations
 from ingestor.repository.ownership import claim_run, heartbeat
 from ingestor.repository.publication import PublicationError, publish_collection
-from ingestor.runs.ownership import OwnershipError
+from ingestor.runs.ownership import LeaseGuard, OwnershipError
+from ingestor.xml_items import XmlCatalog, aggregate_xml_catalogs
 
 from .conftest import ROOT
 
 SOURCE_TIME = datetime(2026, 10, 29, 6, tzinfo=UTC)
 
 
+def test_supplied_keshet_item_round_trips_through_publication(publication_db):
+    from ingestor.xml_items import parse_xml_catalog
+
+    branch = BranchIdentity("keshet-teamim", "001", "001")
+    xml = (ROOT / "services/ingestor/tests/fixtures/keshet_item.xml").read_bytes()
+    catalog = parse_xml_catalog(
+        xml, branch=branch, expected_source_chain_id="7290000000000", published_at=SOURCE_TIME
+    )
+    result = aggregate_xml_catalogs([catalog], chain_id="keshet-teamim")
+    owner = owner_for(publication_db, ("keshet-teamim",))
+    publication_db.execute("SET ROLE supermarket_ingestor")
+    assert publish_collection(
+        publication_db, owner, ChainCollection(result, (branch,), (branch,), 0)
+    )
+    row = publication_db.execute(
+        "SELECT quantity,unit_qty,qty_in_package,unit_of_measure,unit_of_measure_price,"
+        "price_update_time,manufacture_item_description,item_price,item_status,name_tokens "
+        "FROM public.products WHERE item_code='7290119371129'"
+    ).fetchone()
+    assert row == (
+        "60.00",
+        "גרם",
+        "12",
+        "100 גרם",
+        "21.50",
+        "2024-03-14T12:55:50.000",
+        "חטיף חלבון פרו שוקולד לבן עוגיות 60 גר",
+        "12.90",
+        "",
+        ["חטיף", "חלבון", "פרו", "שוקול"],
+    )
+
+
 def collection(*codes, chain_id="victory", source_time=SOURCE_TIME, successes=1):
     branches = tuple(BranchIdentity(chain_id, "001", str(i)) for i in range(successes))
     catalogs = tuple(
-        ParsedCatalog(
+        XmlCatalog(
             branch,
             "7290000000000",
             source_time,
             tuple(
-                ProductObservation(
-                    code,
-                    "Example",
-                    Decimal("12.3456"),
-                    False,
-                    source_quantity=Decimal(60),
-                    source_unit_qty="ml",
-                )
+                {
+                    "item_code": code,
+                    "item_name": "Example",
+                    "item_price": "12.3456",
+                    "quantity": "60",
+                    "unit_qty": "ml",
+                    "b_is_weighted": "0",
+                }
                 for code in codes
             ),
-            2,
-            0,
-            0,
-            frozenset(),
         )
         for branch in branches
     )
-    result = aggregate_catalogs(catalogs, chain_id=chain_id)
+    result = aggregate_xml_catalogs(catalogs, chain_id=chain_id)
     return ChainCollection(result, branches, branches, 0)
 
 
@@ -81,25 +110,9 @@ def test_one_branch_publication_commits_catalog_metadata_and_outcome(publication
     publication_db.execute("SET ROLE supermarket_ingestor")
     assert publish_collection(publication_db, owner, collection("001234", "other"))
     assert publication_db.execute(
-        "SELECT item_code,price,sample_count,package_quantity,package_unit,source_quantity,"
-        "source_unit_qty,source_updated_at,newest_source_updated_at,run_id "
-        "FROM public.products "
-        "ORDER BY item_code"
-    ).fetchall() == [
-        (
-            code,
-            Decimal("12.3456"),
-            1,
-            Decimal(60),
-            "ml",
-            Decimal(60),
-            "ml",
-            SOURCE_TIME,
-            SOURCE_TIME,
-            owner.run_id,
-        )
-        for code in ("001234", "other")
-    ]
+        "SELECT item_code,item_price,sample_count,quantity,unit_qty,run_id "
+        "FROM public.products ORDER BY item_code"
+    ).fetchall() == [(code, "12.3456", 1, "60", "ml", owner.run_id) for code in ("001234", "other")]
     assert publication_db.execute(
         "SELECT current_run_id,product_count,source_updated_at,catalog_updated_at>SOURCE_TIME "
         "FROM public.chains CROSS JOIN (SELECT %s::timestamptz AS SOURCE_TIME) t "
@@ -109,7 +122,7 @@ def test_one_branch_publication_commits_catalog_metadata_and_outcome(publication
     assert publication_db.execute(
         "SELECT status,attempt_count,successful_branch_count,product_count,invalid_row_count,"
         "started_at IS NOT NULL,finished_at IS NOT NULL FROM public.refresh_run_chains"
-    ).fetchone() == ("SUCCEEDED", 1, 1, 2, 2, True, True)
+    ).fetchone() == ("SUCCEEDED", 1, 1, 2, 0, True, True)
     assert publication_db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
 
 
@@ -237,7 +250,7 @@ def test_old_source_watermark_is_not_replaced_with_ingestion_time(publication_db
 
 
 @pytest.mark.parametrize(
-    "fault", ["duplicate", "mixed_chain", "bad_time", "extra_precision", "bad_attempts"]
+    "fault", ["duplicate", "mixed_chain", "bad_field", "missing_code", "bad_attempts"]
 )
 def test_invalid_collection_fails_without_mutation(publication_db, fault):
     owner = owner_for(publication_db)
@@ -249,8 +262,8 @@ def test_invalid_collection_fails_without_mutation(publication_db, fault):
         products = {
             "duplicate": (product, product),
             "mixed_chain": (replace(product, chain_id="osher-ad"),),
-            "bad_time": (replace(product, source_updated_at=SOURCE_TIME.replace(tzinfo=None)),),
-            "extra_precision": (replace(product, price=Decimal("1.00001")),),
+            "bad_field": (replace(product, fields={**product.fields, "quantity": 60}),),
+            "missing_code": (replace(product, fields={**product.fields, "item_code": ""}),),
         }[fault]
         result = replace(result, aggregation=replace(result.aggregation, products=products))
     before = snapshot(publication_db)
@@ -297,3 +310,53 @@ def test_attempt_summary_and_logs_are_bounded_metadata_only(publication_db):
     assert "private-product-code" not in stream.getvalue()
     assert SOURCE_TIME.isoformat() in stream.getvalue()
     assert "source_age_hours" in stream.getvalue()
+
+
+def test_heartbeat_survives_a_publication_that_outlives_its_lock_timeout(publication_db):
+    """A long insert holds the lease row; the guard must retry, not lose ownership."""
+    owner = owner_for(publication_db, ("victory",))
+    publication_db.execute(
+        "CREATE FUNCTION public.slow_publication() RETURNS trigger LANGUAGE plpgsql AS "
+        "$$ BEGIN PERFORM pg_sleep(6.5); RETURN NEW; END $$"
+    )
+    publication_db.execute(
+        "CREATE TRIGGER slow_publication BEFORE INSERT ON public.products "
+        "FOR EACH ROW EXECUTE FUNCTION public.slow_publication()"
+    )
+    publication_db.execute("SET ROLE supermarket_ingestor")
+    dsn = publication_db.info.dsn
+    stream = io.StringIO()
+
+    def publish():
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            connection.execute("SET ROLE supermarket_ingestor")
+            return publish_collection(connection, owner, collection("new"))
+
+    with psycopg.connect(dsn, autocommit=True) as renewal:
+        renewal.execute("SET ROLE supermarket_ingestor")
+
+        def renew():
+            return heartbeat(renewal, owner, lease_seconds=300)
+
+        with LeaseGuard(
+            renew,
+            logger=create_logger(transport=ConsoleTransport(stream)),
+            interval_seconds=0.25,
+            retry_seconds=0.1,
+            lease_seconds=300,
+        ) as guard:
+            with ThreadPoolExecutor(max_workers=1) as workers:
+                future = workers.submit(publish)
+                # The first background pulse lands while the insert holds the rows.
+                sleep(0.5)
+                assert future.result(timeout=30) is True
+            guard.check()
+        assert not guard.wait_until_lost(0)
+        # Stop the guard before using its renewal connection from this thread.
+        assert heartbeat(renewal, owner, lease_seconds=300) == 0
+    assert publication_db.execute("SELECT item_code FROM public.products").fetchall() == [("new",)]
+    assert publication_db.execute("SELECT status FROM public.refresh_run_chains").fetchone() == (
+        "SUCCEEDED",
+    )
+    assert "lease.heartbeat_contended" in stream.getvalue()
+    assert "lease.heartbeat_failed" not in stream.getvalue()

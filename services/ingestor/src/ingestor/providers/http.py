@@ -6,6 +6,7 @@ from typing import Self
 
 import httpx
 
+from ..logging.types import Logger
 from .stream import SourceError
 
 
@@ -20,6 +21,7 @@ class BoundedClient:
         deadline: float | None = None,
         allow_azure: bool = False,
         transport: httpx.BaseTransport | None = None,
+        logger: Logger | None = None,
     ) -> None:
         self.allowed_hosts = allowed_hosts
         self.allow_azure = allow_azure
@@ -28,6 +30,7 @@ class BoundedClient:
         self.max_requests = max_requests
         self.deadline = monotonic() + 120 if deadline is None else deadline
         self.request_count = 0
+        self._logger = logger
         self._client = httpx.Client(
             timeout=timeout_seconds,
             follow_redirects=False,
@@ -60,6 +63,8 @@ class BoundedClient:
             raise SourceError("UNAPPROVED_SOURCE_URL")
 
     def _request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
+        started = monotonic()
+        request, status = None, None
         try:
             request = self._client.build_request(method, url, **kwargs)
             request_deadline = min(self.deadline, monotonic() + self.timeout_seconds)
@@ -73,6 +78,7 @@ class BoundedClient:
                 request.extensions["timeout"] = httpx.Timeout(remaining).as_dict()
                 self.request_count += 1
                 response = self._client.send(request, stream=True)
+                status = response.status_code
                 try:
                     if response.is_redirect and response.next_request is not None:
                         next_request = response.next_request
@@ -103,7 +109,36 @@ class BoundedClient:
                 finally:
                     response.close()
             raise SourceError("REDIRECT_LIMIT")
+        except SourceError as error:
+            self._log_failure(request, status, started, error)
+            raise
         except httpx.TimeoutException:
-            raise SourceError("TIME_LIMIT") from None
+            error = SourceError("TIME_LIMIT")
+            self._log_failure(request, status, started, error)
+            raise error from None
         except (httpx.HTTPError, httpx.InvalidURL, ValueError):
-            raise SourceError("HTTP_FAILURE") from None
+            error = SourceError("HTTP_FAILURE")
+            self._log_failure(request, status, started, error)
+            raise error from None
+
+    def _log_failure(
+        self,
+        request: httpx.Request | None,
+        status: int | None,
+        started: float,
+        error: SourceError,
+    ) -> None:
+        """Emit host/path diagnostics only when a request fails; never the query."""
+        if self._logger is None:
+            return
+        self._logger.error(
+            "http.request_failed",
+            "Source request failed",
+            method=request.method if request is not None else None,
+            host=request.url.host if request is not None else None,
+            path=request.url.path if request is not None else None,
+            status=status,
+            elapsed_ms=round((monotonic() - started) * 1000),
+            request_count=self.request_count,
+            error_code=str(error),
+        )

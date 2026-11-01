@@ -6,22 +6,21 @@ from dataclasses import dataclass
 from random import Random
 from time import monotonic
 
-from .aggregation import aggregate_catalogs
 from .chains import DEFERRED_CHAIN_IDS
 from .config import Settings
 from .logging.types import Logger
-from .models import AggregationResult, ParsedCatalog
-from .parsing import parse_catalog
+from .models import AggregationResult
 from .providers.selected import select_catalogs
 from .providers.stream import SourceError, decompress
 from .providers.types import BranchIdentity, CatalogCandidate, Provider
 from .runs.ownership import OwnershipError
 from .selection import collect_sample
+from .xml_items import XmlAggregation, XmlCatalog, aggregate_xml_catalogs, parse_xml_catalog
 
 
 @dataclass(frozen=True)
 class ChainCollection:
-    aggregation: AggregationResult
+    aggregation: AggregationResult | XmlAggregation
     attempted_branches: tuple[BranchIdentity, ...]
     successful_branches: tuple[BranchIdentity, ...]
     failed_attempt_count: int
@@ -68,7 +67,7 @@ def collect_chain(
         duration_ms=round((monotonic() - started) * 1000),
     )
 
-    def collect(candidate: CatalogCandidate) -> ParsedCatalog:
+    def collect(candidate: CatalogCandidate) -> XmlCatalog:
         ref = candidate.file
         if ref is None:
             raise SourceError("MISSING_SOURCE_TIME")
@@ -80,7 +79,7 @@ def collect_chain(
         xml = decompress(payload, limit=settings.provider_max_decompressed_bytes)
         if check:
             check()
-        catalog = parse_catalog(
+        catalog = parse_xml_catalog(
             xml,
             branch=candidate.branch.identity,
             expected_source_chain_id=source_id,
@@ -103,7 +102,7 @@ def collect_chain(
     sample = collect_sample(candidates, collect, logger, rng=rng)
     if check:
         check()
-    aggregation = aggregate_catalogs(
+    aggregation = aggregate_xml_catalogs(
         tuple(success.catalog for success in sample.successful),
         chain_id=chain_id,
         logger=logger,

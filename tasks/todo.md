@@ -308,3 +308,39 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 ## One-click manual refresh
 - [x] GitHub refresh accepts blank run_id, atomically admits all enabled chains in the runner and immediately invokes the normal fenced worker. Existing API-admitted IDs still supported.
 - [x] Thirty focused unit and real PostgreSQL cases pass, including admission-to-publication, conflicts, existing-ID reuse and connection cleanup; Ruff/actionlint/build pass.
+
+## XML item storage correction (2026-11-01)
+User supersedes the previous normalization/filtering contract. One row per
+chain/barcode and sampled ItemPrice averaging remain; all other item values come
+unchanged from one selected branch. Details: tasks/xml-storage-plan.md.
+
+- [x] New branch fix/preserve-xml-item-fields from main.
+- [x] Lossless source-text capture, snake_case field names, empty/unknown values,
+  deterministic metadata branch selection and no package/name/price row exclusions.
+- [x] Migration 003 replaces product aliases with XML text columns; removes product
+  compatibility_metadata/source_updated_at/newest_source_updated_at. Keeps known
+  old values; unknown lexical/source values require a fresh scrape to recover.
+- [x] Route collection and fenced publication through the XML representation;
+  retain source/identity/XML security, sampling, leases and atomicity.
+- [x] Supplied Keshet example survives full database publication: quantity 60.00,
+  unit_qty גרם, qty_in_package 12, full manufacture description, unit-of-measure
+  fields, empty item status and unchanged XML timestamp.
+- [x] 491 tests pass on Python 3.12 (including real disposable PostgreSQL), Ruff,
+  actionlint and wheel/sdist builds. Upgrade preserves known rows; rollback refuses
+  unrepresentable new XML values atomically rather than losing them.
+- [x] User-authorized migration 003 applied to Supabase on 2026-11-01; zero active
+  refresh runs checked first. Versions 001/002/003 verified; all 87,186 rows
+  preserved and requested column removals/new XML columns confirmed.
+- [ ] Refresh catalogs to refill previously discarded fields. Update API product
+  SQL/response/search normalization for the breaking column contract before use.
+
+Hosted XML-storage CI passed for a4e3a45: https://github.com/osherz80/Scrapy/actions/runs/41301828852 . Follow-up legacy timestamp preservation passed all 19 migration/XML-focused cases. No production migration performed.
+
+## User correction: token search only
+- [x] Remove item_nm and xml_fields through additive migration 004; restore only name_tokens and its GIN index. Do not introduce normalized_name or change original item_name.
+- [x] Restore publication token derivation using the existing tokenizer; migration backfill parity tested against shared backend fixtures.
+- [x] 492 tests, Ruff and builds pass. Applied migration 004 with zero active runs; all 87,186 rows and original item_name values verified unchanged. item_nm/xml_fields removed, name_tokens restored, GIN index valid, normalized_name absent.
+
+## Canonical XML column cleanup
+- [x] Migration 005 removes manufacturer_name/bls_weighted/price_update_date after preserving alternate values in manufacture_name/b_is_weighted/price_update_time when needed. Future XML aliases map to these canonical fields.
+- [x] 495 tests, Ruff, actionlint and distribution builds pass. Migration 005 applied with zero active runs; all 100,295 product rows, names, search tokens and expected merged canonical values verified preserved. Requested duplicate columns are absent.
