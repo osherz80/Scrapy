@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 
 from ..collection import ChainCollection
 from ..logging.types import Logger
+from ..normalization import tokenize
 from ..runs.ownership import OwnershipError, RunOwnership
 from ..xml_items import XML_COLUMNS, XmlProduct
 from .admission import _timeouts
@@ -21,7 +22,7 @@ _INSERT_COLUMNS = (
     "sample_count",
     "subchain_id",
     "store_id",
-    "xml_fields",
+    "name_tokens",
     "updated_at",
     "run_id",
 )
@@ -104,7 +105,7 @@ def _prepare(collection: ChainCollection):
                 product.sample_count,
                 product.selected_branch.subchain_id,
                 product.selected_branch.store_id,
-                Jsonb(product.fields),
+                list(tokenize(product.fields.get("item_name", ""))),
             )
         )
     return rows, Jsonb(sampled)

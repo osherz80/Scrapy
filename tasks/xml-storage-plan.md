@@ -29,3 +29,7 @@ values alongside the explicit known-field columns, without runtime DDL.
 Acceptance: the supplied barcode retains quantity='60.00', unit_qty='גרם',
 qty_in_package='12', unit_of_measure='100 גרם', unit_of_measure_price='21.50',
 the full manufacture_item_description and unchanged PriceUpdateTime text.
+
+User correction: remove item_nm and xml_fields, restore only name_tokens plus
+its search index. Do not restore normalized_name or alter item_name. Migration
+004 applied with all 87,186 names/rows preserved; 492 tests pass.

@@ -137,16 +137,16 @@ XML columns use snake_case names and text values:
 | AllowDiscount | allow_discount |
 | ItemStatus | item_status |
 
-Verified alternate XML names ItemNm/ManufacturerName/PriceUpdateDate/IsWeighted/
+Alternate XML names ManufacturerName/PriceUpdateDate/IsWeighted/
 blsWeighted have their own snake_case columns, without changing the source name.
-The xml_fields JSONB object retains all snake_case source fields, including
-additional retailer fields outside the explicit columns. No runtime SQL identifiers
-are constructed from retailer input; additional fields are never silently dropped.
+Migration 004 removes item_nm and xml_fields. No normalized_name column is added.
+The name_tokens text[] search column is derived separately from item_name using
+the existing tokenizer, with a GIN index. Original item_name text remains unchanged.
 Products retain chain_id, sample_count, selected subchain_id/store_id, updated_at
 and run_id as operational context. PK is (chain_id,item_code); run/chain FKs
 continue to protect publication references. Product source_updated_at,
 newest_source_updated_at and compatibility_metadata are removed. Normalized
-package/name/search columns are removed; consumer derivation belongs in the API.
+package/name columns are removed; name_tokens remains for searching.
 
 Other tables (chains, refresh_runs, refresh_run_chains, chain_leases,
 schedule_claims, schema_migrations) retain their existing coordination/fencing

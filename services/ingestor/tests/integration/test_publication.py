@@ -38,7 +38,7 @@ def test_supplied_keshet_item_round_trips_through_publication(publication_db):
     )
     row = publication_db.execute(
         "SELECT quantity,unit_qty,qty_in_package,unit_of_measure,unit_of_measure_price,"
-        "price_update_time,manufacture_item_description,item_price,item_status "
+        "price_update_time,manufacture_item_description,item_price,item_status,name_tokens "
         "FROM public.products WHERE item_code='7290119371129'"
     ).fetchone()
     assert row == (
@@ -51,6 +51,7 @@ def test_supplied_keshet_item_round_trips_through_publication(publication_db):
         "חטיף חלבון פרו שוקולד לבן עוגיות 60 גר",
         "12.90",
         "",
+        ["חטיף", "חלבון", "פרו", "שוקול"],
     )
 
 

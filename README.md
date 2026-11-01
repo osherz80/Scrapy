@@ -238,3 +238,7 @@ The three requested metadata columns and normalized product aliases are removed.
 See [storage correction plan](tasks/xml-storage-plan.md) and spec sections 6-7.
 The API must be aligned to this new schema. Supabase migration 003 was applied explicitly on 2026-11-01; all 87,186 existing
 rows were preserved. Use this matching worker branch until it is merged to main.
+
+Migration 004 is now applied: item_nm/xml_fields removed; name_tokens and its GIN
+index restored. Original item_name values are unchanged; normalized_name is not
+a stored column. Future refreshes write search tokens alongside the XML fields.

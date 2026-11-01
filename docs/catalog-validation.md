@@ -1,8 +1,8 @@
 # XML item collection and preservation
 
 Production collection uses `xml_items.parse_xml_catalog` and
-`aggregate_xml_catalogs`. It preserves source item text, empty elements and unknown
-fields, with snake_case column names. Only ItemPrice is averaged across distinct
+`aggregate_xml_catalogs`. It preserves source item text and empty elements in the configured XML-named
+columns. item_nm and the xml_fields JSON column are removed by migration 004. Only ItemPrice is averaged across distinct
 sampled branches. All other fields come from one deterministically selected
 branch (newest catalog, then branch identity). Package disagreement no longer
 removes a barcode; missing/invalid optional values are retained.
@@ -23,3 +23,6 @@ Historical `parsing.py`, `aggregation.py` and `packaging.py` implement the earli
 normalized contract and retain unit coverage; production collection no longer
 uses those transformations. Probe remains a legacy feasibility diagnostic. Use
 pilot to exercise the actual production storage/aggregation path.
+
+name_tokens is generated separately for search with the existing tokenizer. It
+does not replace or modify item_name. No normalized_name column is stored.

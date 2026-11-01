@@ -350,3 +350,13 @@ as part of developing this revision.
 Legacy item_price_updated_at values are retained as their existing database text
 in price_update_time during migration. Their original XML lexical form cannot be
 reconstructed; a refresh replaces them with the exact XML text.
+
+
+## Token-only search correction: migration 004
+
+Remove exactly item_nm and xml_fields. Restore name_tokens text[] and its GIN
+index, backfilling existing rows with the established tokenizer rules. No
+normalized_name column is added and item_name is never overwritten. New refreshes
+calculate only name_tokens alongside source values. The Unicode-neutral ICU
+collation und-x-icu is used for the SQL backfill; parity fixtures cover Unicode
+case handling, whitespace, punctuation and decimal points.

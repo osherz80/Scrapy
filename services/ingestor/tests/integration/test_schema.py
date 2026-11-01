@@ -56,7 +56,7 @@ def test_exact_codes_preserve_leading_zeros_and_required_indexes_exist(db):
             "WHERE schemaname='public' AND tablename='products'"
         ).fetchall()
     )
-    assert "products_name_tokens_idx" not in indexes
+    assert "USING gin" in indexes["products_name_tokens_idx"]
     assert "(item_code)" in indexes["products_item_code_idx"]
 
 

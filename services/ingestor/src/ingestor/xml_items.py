@@ -30,7 +30,6 @@ XML_COLUMNS = (
     "unit_of_measure_price",
     "allow_discount",
     "item_status",
-    "item_nm",
     "manufacturer_name",
     "price_update_date",
     "is_weighted",

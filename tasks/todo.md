@@ -335,3 +335,8 @@ unchanged from one selected branch. Details: tasks/xml-storage-plan.md.
   SQL/response/search normalization for the breaking column contract before use.
 
 Hosted XML-storage CI passed for a4e3a45: https://github.com/osherz80/Scrapy/actions/runs/41301828852 . Follow-up legacy timestamp preservation passed all 19 migration/XML-focused cases. No production migration performed.
+
+## User correction: token search only
+- [x] Remove item_nm and xml_fields through additive migration 004; restore only name_tokens and its GIN index. Do not introduce normalized_name or change original item_name.
+- [x] Restore publication token derivation using the existing tokenizer; migration backfill parity tested against shared backend fixtures.
+- [x] 492 tests, Ruff and builds pass. Applied migration 004 with zero active runs; all 87,186 rows and original item_name values verified unchanged. item_nm/xml_fields removed, name_tokens restored, GIN index valid, normalized_name absent.
