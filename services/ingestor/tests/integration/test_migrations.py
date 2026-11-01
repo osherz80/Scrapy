@@ -26,9 +26,23 @@ def test_status_does_not_bootstrap_or_mutate_an_empty_database(migration_db):
 
 def test_apply_is_idempotent_and_records_forward_and_rollback_checksums(migration_db):
     migrations = load_migrations(ROOT)
-    assert apply_migrations(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert apply_migrations(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
     assert apply_migrations(migration_db, migrations) == ()
-    assert migration_status(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert migration_status(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
     record = migration_db.execute(
         "SELECT checksum,rollback_checksum FROM public.schema_migrations WHERE version='001'"
     ).fetchone()
@@ -47,6 +61,7 @@ def test_changed_applied_sql_is_rejected_before_further_work(migration_db):
 def test_explicit_rollback_removes_domain_tables_and_can_be_reapplied(migration_db):
     migrations = load_migrations(ROOT)
     apply_migrations(migration_db, migrations)
+    rollback_migration(migration_db, migrations, version="006")
     rollback_migration(migration_db, migrations, version="005")
     rollback_migration(migration_db, migrations, version="004")
     rollback_migration(migration_db, migrations, version="003")
@@ -57,7 +72,14 @@ def test_explicit_rollback_removes_domain_tables_and_can_be_reapplied(migration_
     assert migration_db.execute(
         "SELECT rolcanlogin FROM pg_roles WHERE rolname='supermarket_ingestor'"
     ).fetchone() == (False,)
-    assert apply_migrations(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert apply_migrations(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
 
 
 def test_failed_sql_rolls_back_ddl_and_ledger_for_the_entire_batch(migration_db):
@@ -65,8 +87,8 @@ def test_failed_sql_rolls_back_ddl_and_ledger_for_the_entire_batch(migration_db)
     invalid_sql = "CREATE TABLE public.marker(id integer); SELECT definitely_missing_column;"
     broken = replace(
         migrations[0],
-        version="006",
-        name="006_broken.sql",
+        version="007",
+        name="007_broken.sql",
         forward=invalid_sql,
         checksum=hashlib.sha256(invalid_sql.encode()).hexdigest(),
     )
@@ -84,8 +106,18 @@ def test_concurrent_runners_apply_each_version_once(migration_db):
 
     with ThreadPoolExecutor(max_workers=2) as workers:
         results = list(workers.map(apply_once, range(2)))
-    assert sorted(results) == [(), ("001", "002", "003", "004", "005")]
-    assert migration_status(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert sorted(results) == [
+        (),
+        ("001", "002", "003", "004", "005", "006"),
+    ]
+    assert migration_status(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
 
 
 def test_rollback_only_targets_the_latest_applied_version(migration_db):
@@ -93,7 +125,14 @@ def test_rollback_only_targets_the_latest_applied_version(migration_db):
     apply_migrations(migration_db, migrations)
     with pytest.raises(MigrationError, match="ROLLBACK_MUST_TARGET_LATEST"):
         rollback_migration(migration_db, migrations, version="000")
-    assert migration_status(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert migration_status(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
 
 
 def test_cli_status_apply_and_rollback_use_only_explicit_admin_environment(migration_db):
@@ -104,6 +143,7 @@ def test_cli_status_apply_and_rollback_use_only_explicit_admin_environment(migra
     env = {"DATABASE_URL": url}
     assert main(["status"], env=env) == 0
     assert main(["apply"], env=env) == 0
+    assert main(["rollback", "--version", "006"], env=env) == 0
     assert main(["rollback", "--version", "005"], env=env) == 0
     assert main(["rollback", "--version", "004"], env=env) == 0
     assert main(["rollback", "--version", "003"], env=env) == 0
@@ -130,7 +170,7 @@ def test_upgrade_moves_existing_data_and_removes_legacy_schema(migration_db):
     migration_db.execute(
         "UPDATE supermarket.chains SET display_name='Preserved' WHERE id='rami-levy'"
     )
-    assert apply_migrations(migration_db, migrations) == ("002", "003", "004", "005")
+    assert apply_migrations(migration_db, migrations) == ("002", "003", "004", "005", "006")
     assert migration_db.execute("SELECT to_regnamespace('supermarket')").fetchone()[0] is None
     assert (
         migration_db.execute(
@@ -138,7 +178,14 @@ def test_upgrade_moves_existing_data_and_removes_legacy_schema(migration_db):
         ).fetchone()[0]
         == "Preserved"
     )
-    assert migration_status(migration_db, migrations) == ("001", "002", "003", "004", "005")
+    assert migration_status(migration_db, migrations) == (
+        "001",
+        "002",
+        "003",
+        "004",
+        "005",
+        "006",
+    )
 
 
 def test_xml_migration_preserves_known_existing_values_and_removes_old_columns(migration_db):
@@ -155,7 +202,7 @@ def test_xml_migration_preserves_known_existing_values_and_removes_old_columns(m
         "ARRAY['existing'],60,'גרם',60,'g','2024-03-14 14:38:43+00')",
         (run.id,),
     )
-    assert apply_migrations(migration_db, migrations) == ("003", "004", "005")
+    assert apply_migrations(migration_db, migrations) == ("003", "004", "005", "006")
     assert migration_db.execute(
         "SELECT item_code,item_name,item_price,quantity,unit_qty,price_update_time "
         "FROM public.products"
@@ -170,6 +217,7 @@ def test_xml_migration_preserves_known_existing_values_and_removes_old_columns(m
     assert not columns.intersection(
         {"compatibility_metadata", "source_updated_at", "newest_source_updated_at", "name", "price"}
     )
+    rollback_migration(migration_db, migrations, version="006")
     rollback_migration(migration_db, migrations, version="005")
     rollback_migration(migration_db, migrations, version="004")
     rollback_migration(migration_db, migrations, version="003")
@@ -193,6 +241,7 @@ def test_legacy_rollback_refuses_unrepresentable_raw_values_without_losing_rows(
         "VALUES ('victory','001','not numeric',1,%s)",
         (run.id,),
     )
+    rollback_migration(migration_db, migrations, version="006")
     rollback_migration(migration_db, migrations, version="005")
     rollback_migration(migration_db, migrations, version="004")
     with pytest.raises(psycopg.Error):
@@ -220,7 +269,7 @@ def test_search_token_backfill_preserves_names_and_matches_existing_token_rules(
             "VALUES ('victory',%s,%s,1,%s)",
             [(str(i), case["input"], run.id) for i, case in enumerate(cases)],
         )
-    assert apply_migrations(migration_db, migrations) == ("004", "005")
+    assert apply_migrations(migration_db, migrations) == ("004", "005", "006")
     assert migration_db.execute("SELECT count(*) FROM public.products").fetchone()[0] == len(cases)
     for i, case in enumerate(cases):
         assert migration_db.execute(
@@ -255,7 +304,7 @@ def test_duplicate_field_migration_merges_values_without_overwriting_canonical_d
         "VALUES ('victory','002',1,%s,'','Other','0','1','canonical','alternate')",
         (run.id,),
     )
-    assert apply_migrations(migration_db, migrations) == ("005",)
+    assert apply_migrations(migration_db, migrations) == ("005", "006")
     assert migration_db.execute(
         "SELECT manufacture_name,b_is_weighted,price_update_time,item_name,name_tokens "
         "FROM public.products WHERE item_code='001'"
