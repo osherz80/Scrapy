@@ -1,3 +1,4 @@
+import gzip
 from dataclasses import replace
 from time import monotonic
 
@@ -22,7 +23,12 @@ def roster(chain="7290058140886", sub="001"):
 def provider(chain, handler, **kwargs):
     client = BoundedClient(
         allowed_hosts=frozenset(
-            {"url.publishedprices.co.il", "laibcatalog.co.il", "shop.hazi-hinam.co.il"}
+            {
+                "url.publishedprices.co.il",
+                "laibcatalog.co.il",
+                "shop.hazi-hinam.co.il",
+                "prices.shufersal.co.il",
+            }
         ),
         allow_azure=True,
         timeout_seconds=60,
@@ -71,6 +77,110 @@ def cerberus_handler(*, bad=None):
         return httpx.Response(200, content=b"catalog")
 
     return handler
+
+
+def shufersal_roster():
+    return (
+        b"<Chain><ChainID>7290027600007</ChainID>"
+        b"<LastUpdateDate>2026-11-01</LastUpdateDate>"
+        b"<LastUpdateTime>02:01:10</LastUpdateTime>"
+        b"<SubChains><SubChain><SubChainID>1</SubChainID><Stores>"
+        b"<Store><StoreId>001</StoreId><StoreType>1</StoreType></Store>"
+        b"<Store><StoreId>002</StoreId><StoreType>1</StoreType></Store>"
+        b"</Stores></SubChain></SubChains></Chain>"
+    )
+
+
+def shufersal_blob(name):
+    return (
+        "https://pricesprodpublic.blob.core.windows.net/pricefull/"
+        f"{name}?sv=2014-02-14&amp;sr=b&amp;sig=test"
+    )
+
+
+def shufersal_page(*, cat, page, bad=None):
+    if cat == 5:
+        if bad == "no-stores":
+            return "<html><body></body></html>"
+        name = "Stores7290027600007-000-20261101-020.gz"
+        return f'<html><body><a href="{shufersal_blob(name)}">file</a></body></html>'
+    names = {
+        1: "PriceFull7290027600007-001-001-20261101-032630.gz",
+        2: "PriceFull7290027600007-001-002-20261101-032630.gz",
+    }
+    nav = [2] if page == 1 else [1]
+    selected = {page: names[page]} if page in names else {}
+    if bad == "empty" and page == 2:
+        selected = {}
+    if bad == "repeat" and page == 2:
+        selected = {2: names[1]}
+    if bad == "grow" and page == 2:
+        nav = [1, 3]
+    names = selected
+    links = "".join(f'<a href="{shufersal_blob(name)}">file</a>' for name in names.values())
+    links += (
+        '<a href="/FileObject/UpdateCategory?catID=2&amp;storeId=0&amp;sort=Time&amp;'
+        'sortdir=ASC">sort</a>'
+    )
+    links += "".join(
+        f'<a href="/FileObject/UpdateCategory?catID=2&amp;storeId=0&amp;page={value}">{value}</a>'
+        for value in nav
+    )
+    return f"<html><body>{links}</body></html>"
+
+
+def shufersal_handler(*, bad=None):
+    def handler(request):
+        if request.url.host.endswith("blob.core.windows.net"):
+            if request.url.path.endswith("Stores7290027600007-000-20261101-020.gz"):
+                return httpx.Response(200, content=gzip.compress(shufersal_roster()))
+            return httpx.Response(200, content=b"catalog")
+        if request.url.path != "/FileObject/UpdateCategory":
+            return httpx.Response(404)
+        return httpx.Response(
+            200,
+            text=shufersal_page(
+                cat=int(request.url.params["catID"]),
+                page=int(request.url.params["page"]),
+                bad=bad,
+            ),
+        )
+
+    return handler
+
+
+def test_shufersal_follows_advertised_last_page_and_maps_roster_identities():
+    pages = []
+    base = shufersal_handler()
+
+    def handler(request):
+        if request.url.path == "/FileObject/UpdateCategory":
+            pages.append(request.url.params["page"])
+        return base(request)
+
+    with provider("shufersal", handler) as source:
+        branches = source.list_branches()
+        files = tuple(source.iter_files())
+        assert [(branch.identity.subchain_id, branch.identity.store_id) for branch in branches] == [
+            ("1", "001"),
+            ("1", "002"),
+        ]
+        assert [file.identity.store_id for file in files] == ["001", "002"]
+        assert source.download(files[0]) == b"catalog"
+    assert pages == ["1", "2", "1"]
+
+
+@pytest.mark.parametrize("bad", ["empty", "repeat", "grow"])
+def test_shufersal_rejects_incomplete_or_changing_listings(bad):
+    with provider("shufersal", shufersal_handler(bad=bad)) as source:
+        with pytest.raises(SourceError, match="INCOMPLETE_LISTING"):
+            source.list_branches()
+
+
+def test_shufersal_requires_a_nonempty_listing_for_every_category():
+    with provider("shufersal", shufersal_handler(bad="no-stores")) as source:
+        with pytest.raises(SourceError, match="INCOMPLETE_LISTING"):
+            source.list_branches()
 
 
 def test_cerberus_consumes_all_reported_pages_once_and_caches_complete_inventory():
@@ -173,13 +283,12 @@ def test_explicit_subchain_mismatch_cannot_fall_back_to_a_unique_store_number():
             source.list_branches()
 
 
-@pytest.mark.parametrize("chain", ["carrefour", "shufersal"])
-def test_deferred_sources_fail_before_network_client_creation(chain, monkeypatch):
+def test_deferred_sources_fail_before_network_client_creation(monkeypatch):
     from ingestor.providers import published
 
     monkeypatch.setattr(published, "BoundedClient", lambda **kw: pytest.fail("client created"))
     with pytest.raises(SourceError, match="SOURCE_DEFERRED"):
-        PublishedProvider(chain, load_settings({}), monotonic() + 60)
+        PublishedProvider("carrefour", load_settings({}), monotonic() + 60)
 
 
 @pytest.mark.parametrize(

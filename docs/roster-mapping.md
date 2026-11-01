@@ -2,6 +2,8 @@
 
 Local read-only evidence collected 2026-10-31. No Supabase connection, raw catalog
 file or database publication was used. Carrefour and Shufersal were not accessed.
+Shufersal was subsequently verified separately on 2026-11-01; see
+[provider evidence](provider-evidence.md).
 
 The first appendix of the [published transparency regulation](https://www.chamber.org.il/media/147842/7442.pdf)
 defines store types 1 physical, 2 online, 3 physical/online. Physical and combined

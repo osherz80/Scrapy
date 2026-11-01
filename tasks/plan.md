@@ -36,7 +36,9 @@ full task 7 verification still follows task 6.
 
 User steering (2026-10-30): Carrefour/Shufersal recovery is deferred to
 `tasks/deferred.md`; eight chains are active by default. Task 5's source choice
-is accepted for those eight. Implement the pure task 11 sampling policy alongside
+is accepted for those eight. Update 2026-11-01: Shufersal was recovered with a
+production provider and is enabled, so nine chains are active; Carrefour remains
+deferred. Implement the pure task 11 sampling policy alongside
 task 6 contracts to verify slot/replacement rules early; production parsing and
 aggregation dependencies still apply before wiring collection or publication.
 
@@ -45,8 +47,9 @@ aggregation dependencies still apply before wiring collection or publication.
 Scheduling refinement (2026-10-31): official GitHub documentation now verifies
 native `timezone: Asia/Jerusalem` cron support. Use one 06:00 trigger with the
 application hour gate and unique local-date claim, rather than two UTC candidates.
-Daily admission targets the eight active chains while the two sources remain
-explicitly deferred. Late/missed starts are reported; exact delivery is not promised.
+Daily admission targets the nine active chains; only Carrefour remains explicitly
+deferred (Shufersal was recovered on 2026-11-01). Late/missed starts are reported;
+exact delivery is not promised.
 
 Use pytest deterministic tests for business rules and failure matrices, Ruff lint/format, and wheel builds. Write failing behavior tests before implementation. Use a disposable PostgreSQL database for transactional/concurrency/crash tests, never an implicitly selected production database. Integration tests require explicit `TEST_DATABASE_URL` from process environment; missing values are reported as unverified gates, not successful tests. Network smoke is opt-in; real hosted measurements are release evidence, not unit tests.
 

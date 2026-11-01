@@ -18,11 +18,15 @@ from ..providers.stream import SourceError
 from ..providers.types import Provider
 from ..repository.ownership import claim_run, heartbeat
 from ..repository.publication import publish_collection, start_chain
-from ..repository.recovery import finish_run, prune_runs
+from ..repository.recovery import failed_chains, finish_run, prune_runs
 from .ownership import LeaseGuard, OwnershipError
 
 type ConnectionFactory = Callable[[], psycopg.Connection]
 type ProviderFactory = Callable[[str, Settings, float, Logger], Provider]
+
+
+def _failure_summary(failures):
+    return [{"chain_id": chain_id, "error_code": error_code} for chain_id, error_code in failures]
 
 
 class _CheckedProvider:
@@ -91,6 +95,7 @@ def run_worker(
     logger = logger.child(run_id=str(run_id), github_run_id=execution_id)
     cancelled = Event() if cancelled is None else cancelled
     started, owner = clock(), None
+    chain_failures = ()
     if not (
         0 < settings.heartbeat_seconds < settings.run_lease_seconds <= 300
         and 0 < settings.run_timeout_minutes <= 45
@@ -208,6 +213,7 @@ def run_worker(
                         )
                     check()
                     status = finish_run(connection, owner)
+                    chain_failures = failed_chains(connection, owner.run_id)
             try:
                 pruned = prune_runs(connection)
                 logger.info(
@@ -221,6 +227,8 @@ def run_worker(
             "run.finished",
             "Refresh completed",
             status=status,
+            failed_chain_count=len(chain_failures),
+            failed_chains=_failure_summary(chain_failures),
             duration_ms=round((clock() - started) * 1000),
         )
         return 0 if status == "SUCCEEDED" else 1
@@ -245,7 +253,14 @@ def run_worker(
             try:
                 with connection_factory() as cleanup:
                     status = finish_run(cleanup, owner, abort=True)
-                logger.info("run.teardown_finished", "Unfinished chains finalized", status=status)
+                    chain_failures = failed_chains(cleanup, owner.run_id)
+                logger.info(
+                    "run.teardown_finished",
+                    "Unfinished chains finalized",
+                    status=status,
+                    failed_chain_count=len(chain_failures),
+                    failed_chains=_failure_summary(chain_failures),
+                )
             except Exception as cleanup_error:
                 logger.error(
                     "run.teardown_failed", "Expiry reconciliation is required", error=cleanup_error

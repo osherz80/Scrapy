@@ -9,7 +9,8 @@ the Python wheel alone does not install the repository's SQL assets.
 
 The `public` schema contains chains, current products, runs,
 per-chain run outcomes, leases and daily claims. There is no price-history or raw
-catalog table. Ten chain IDs are seeded; Carrefour and Shufersal start disabled.
+catalog table. Ten chain IDs are seeded; Carrefour starts disabled and migration
+006 enables Shufersal after its local production pilot.
 Transactional publication, run recovery and retention are implemented repository
 libraries. CLI worker wiring and actual hosted operation remain separate tasks.
 

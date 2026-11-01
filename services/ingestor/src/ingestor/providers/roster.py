@@ -112,12 +112,31 @@ def parse_filename(name: str) -> Filename | None:
         identity = parts[:-2]
     elif len(parts[-1]) in (12, 14):
         stamp, identity = parts[-1], parts[:-1]
+    elif (
+        kind == FileKind.STORES
+        and len(parts) >= 2
+        and len(parts[-2]) == 8
+        and 1 <= len(parts[-1]) <= 5
+        and parts[-2].isascii()
+        and parts[-2].isdecimal()
+        and parts[-1].isascii()
+        and parts[-1].isdecimal()
+    ):
+        # Shufersal's Stores name carries a date with an abbreviated trailing
+        # token instead of an HHMMSS time (...-20261101-020.gz). Only the date
+        # is reliable here; the XML exposes LastUpdateDate/LastUpdateTime when
+        # exact source timing is needed.
+        stamp, identity = parts[-2], parts[:-2]
     if not stamp or not 1 <= len(identity) <= 2 or any(not value for value in identity):
         return None
     try:
-        published = source_timestamp(
-            datetime.strptime(stamp, "%Y%m%d%H%M%S" if len(stamp) == 14 else "%Y%m%d%H%M")
-        )
+        if len(stamp) == 14:
+            value = datetime.strptime(stamp, "%Y%m%d%H%M%S")
+        elif len(stamp) == 12:
+            value = datetime.strptime(stamp, "%Y%m%d%H%M")
+        else:
+            value = datetime.strptime(stamp, "%Y%m%d")
+        published = source_timestamp(value)
     except (ValueError, SourceError):
         published = None
     return Filename(

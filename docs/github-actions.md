@@ -42,7 +42,7 @@ local time: starts within 06:00–06:59 report their startup delay; earlier star
 skip, and starts from 07:00 onward fail as missed without opening a DB connection.
 There is no automatic historical backfill or guaranteed exact-minute delivery.
 
-The scheduler reserves all eight active chains and inserts one unique local-date
+The scheduler reserves all nine active chains and inserts one unique local-date
 claim in the same transaction. A duplicate skips. Any existing chain reservation
 causes a durable failed scheduled run with SCHEDULE_CONFLICT and no partial new
 reservations. The daily claim remains consumed; recovery is an explicit manual
@@ -50,7 +50,7 @@ request, not an automatic retry that might overlap the original worker.
 
 An admitted run proceeds through the regular worker: single claim, dedicated
 heartbeat connection, sequential physical-branch sampling, full validation,
-aggregation and fenced atomic publication. Carrefour and Shufersal stay deferred.
+aggregation and fenced atomic publication. Carrefour stays deferred.
 The 45-minute job timeout includes checkout/setup. Hard kills may prevent teardown;
 five-minute lease expiry and later admission/status reconciliation recover them.
 
@@ -64,7 +64,7 @@ invalid UUIDs fail without collection.
 
 For source reachability diagnostics, choose `mode: probe`; leave `run_id` empty.
 This runs the existing bounded one-attempt-per-chain feasibility probe across the
-eight enabled chains. It has no database secret, no DB writes and no raw artifacts.
+nine enabled chains. It has no database secret, no DB writes and no raw artifacts.
 It is diagnostic evidence, not proof of complete roster/aggregation or production
 capacity. The hosted pilot still requires separate recorded measurements.
 

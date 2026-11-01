@@ -4,7 +4,7 @@ import pytest
 
 from ingestor.providers.roster import parse_filename, parse_roster
 from ingestor.providers.stream import SourceError
-from ingestor.providers.types import BranchKind
+from ingestor.providers.types import BranchKind, FileKind
 
 
 def roster(stores, sub="001"):
@@ -94,6 +94,19 @@ def test_fourteen_digit_store_filename_and_duplicated_time():
     assert ref.published_at == datetime(2026, 10, 31, 4, 1, tzinfo=UTC)
     assert parse_filename("Price7290058140886-001-007-20261031-060000.gz") is None
     assert parse_filename("PriceFull7290058140886-../file.gz") is None
+
+
+def test_shufersal_stores_filename_uses_its_date_without_inventing_a_time():
+    ref = parse_filename("Stores7290027600007-000-20261101-020.gz")
+    assert ref is not None
+    assert (ref.kind, ref.source_chain_id, ref.subchain_id, ref.store_id) == (
+        FileKind.STORES,
+        "7290027600007",
+        None,
+        None,
+    )
+    assert ref.published_at == datetime(2026, 10, 31, 22, 0, tzinfo=UTC)
+    assert parse_filename("PriceFull7290027600007-001-001-20261101-032630.gz") is not None
 
 
 def test_catalog_accepts_branch_padding_only_and_keeps_exact_product_code():

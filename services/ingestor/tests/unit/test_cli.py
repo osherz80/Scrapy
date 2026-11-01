@@ -17,7 +17,7 @@ def test_check_config_logs_safe_summary_and_flushes():
     record = json.loads(stream.getvalue())
     assert code == 0
     assert record["event"] == "configuration.validated"
-    assert record["fields"]["chain_count"] == 8
+    assert record["fields"]["chain_count"] == 9
 
 
 def test_required_database_error_is_sanitized(capsys):

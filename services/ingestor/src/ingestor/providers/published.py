@@ -14,6 +14,7 @@ from .types import FileKind, PublishedFile, identifier_key
 # Audited public publisher identifiers and public, passwordless Cerberus logins.
 # No private credential or environment-file lookup is used by these portals.
 _SOURCES = {
+    "shufersal": ("7290027600007", "shufersal", None),
     "rami-levy": ("7290058140886", "cerberus", "RamiLevi"),
     "yochananof": ("7290803800003", "cerberus", "yohananof"),
     "osher-ad": ("7290103152017", "cerberus", "osherad"),
@@ -27,7 +28,13 @@ _HOSTS = {
     "cerberus": "url.publishedprices.co.il",
     "laib": "laibcatalog.co.il",
     "hatzi": "shop.hazi-hinam.co.il",
+    "shufersal": "prices.shufersal.co.il",
 }
+_SHUFERSAL_PRICE_FULL = 2
+_SHUFERSAL_STORES = 5
+# The full PriceFull inventory is paginated at 20 files per page (22 pages at
+# the time of implementation), each with one Azure blob download per sample.
+_SHUFERSAL_MAX_REQUESTS = 64
 
 
 class _Page(HTMLParser):
@@ -47,6 +54,27 @@ class _Page(HTMLParser):
                 if len(page) != 1 or not page[0].isascii() or not page[0].isdecimal():
                     raise SourceError("INCOMPLETE_LISTING")
                 self.pages.add(int(page[0]))
+
+
+class _ShufersalPage(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links, self.pages = [], set()
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        href = dict(attrs).get("href", "")
+        self.links.append(href)
+        parsed = urlsplit(href)
+        if parsed.path.rstrip("/") != "/FileObject/UpdateCategory":
+            return
+        page = parse_qs(parsed.query).get("page")
+        if page is None:
+            return
+        if len(page) != 1 or not page[0].isascii() or not page[0].isdecimal():
+            raise SourceError("INCOMPLETE_LISTING")
+        self.pages.add(int(page[0]))
 
 
 class PublishedProvider:
@@ -72,9 +100,10 @@ class PublishedProvider:
             if client is not None
             else BoundedClient(
                 allowed_hosts=frozenset({_HOSTS[self._family]}),
-                allow_azure=self._family == "hatzi",
+                allow_azure=self._family in ("hatzi", "shufersal"),
                 timeout_seconds=settings.provider_timeout_seconds,
                 max_bytes=self._limit,
+                max_requests=(_SHUFERSAL_MAX_REQUESTS if self._family == "shufersal" else 40),
                 deadline=deadline,
                 logger=logger,
             )
@@ -185,6 +214,50 @@ class PublishedProvider:
             )
         return found
 
+    def _shufersal(self, category):
+        found, seen, page, last = [], set(), 1, 1
+        while page <= last:
+            document = _ShufersalPage()
+            document.feed(
+                self._client.get(
+                    self._base + "/FileObject/UpdateCategory",
+                    params={"catID": category, "storeId": 0, "page": page},
+                ).text
+            )
+            if any(value < 1 for value in document.pages):
+                raise SourceError("INCOMPLETE_LISTING")
+            if page == 1:
+                last = max(document.pages) if document.pages else 1
+            elif document.pages:
+                if max(document.pages) > last or (page < last and last not in document.pages):
+                    raise SourceError("INCOMPLETE_LISTING")
+            elif page < last:
+                raise SourceError("INCOMPLETE_LISTING")
+            this_page = {}
+            for url in document.links:
+                parsed = urlsplit(url)
+                if (
+                    parsed.scheme != "https"
+                    or not parsed.hostname
+                    or not parsed.hostname.endswith(".blob.core.windows.net")
+                ):
+                    continue
+                name = parsed.path.rsplit("/", 1)[-1]
+                if parse_filename(name) is None:
+                    continue
+                if name in this_page and this_page[name] != url:
+                    raise SourceError("INCOMPLETE_LISTING")
+                this_page[name] = url
+            if not this_page:
+                raise SourceError("INCOMPLETE_LISTING")
+            for name, url in this_page.items():
+                if name in seen:
+                    raise SourceError("INCOMPLETE_LISTING")
+                seen.add(name)
+                found.append((name, url))
+            page += 1
+        return found
+
     def _hatzi(self, kind):
         found, seen, page, last = [], set(), 1, 1
         while page <= last:
@@ -227,6 +300,8 @@ class PublishedProvider:
             listed = self._cerberus("Stores") + self._cerberus("PriceFull")
         elif self._family == "laib":
             listed = self._laib()
+        elif self._family == "shufersal":
+            listed = self._shufersal(_SHUFERSAL_PRICE_FULL) + self._shufersal(_SHUFERSAL_STORES)
         else:
             listed = self._hatzi("3") + self._hatzi("1")
         refs = []

@@ -5,8 +5,8 @@
 The `pilot` command runs PublishedProvider, complete roster/catalog discovery,
 full secure XML parsing, the existing three-branch sampling/replacement policy,
 and aggregation. It does not create database connections, admit refresh runs,
-publish products, or save raw catalogs. All eight active chains are selected by
-default; Carrefour and Shufersal remain excluded. Logs contain counts and static
+publish products, or save raw catalogs. All nine active chains are selected by
+default; Carrefour remains excluded. Logs contain counts and static
 failure codes. A partial/failed pilot exits 1; all chains must produce publishable
 aggregates to exit 0. The global execution budget is 45 minutes by default;
 individual request/size limits remain unchanged.

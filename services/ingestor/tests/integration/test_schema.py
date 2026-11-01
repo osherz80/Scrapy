@@ -27,7 +27,7 @@ def insert_product(db, run_id, *, code="001234", price="10.9000", sample_count=1
     )
 
 
-def test_six_domain_tables_and_ten_chains_are_seeded_with_two_deferred(db):
+def test_six_domain_tables_and_ten_chains_are_seeded_with_one_deferred(db):
     tables = db.execute("SELECT tablename FROM pg_tables WHERE schemaname='public'").fetchall()
     assert {row[0] for row in tables} == {
         "chains",
@@ -39,7 +39,7 @@ def test_six_domain_tables_and_ten_chains_are_seeded_with_two_deferred(db):
     }
     chains = db.execute("SELECT id, enabled FROM public.chains").fetchall()
     assert len(chains) == 10
-    assert {name for name, enabled in chains if not enabled} == {"carrefour", "shufersal"}
+    assert {name for name, enabled in chains if not enabled} == {"carrefour"}
 
 
 def test_exact_codes_preserve_leading_zeros_and_required_indexes_exist(db):

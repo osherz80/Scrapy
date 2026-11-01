@@ -139,7 +139,9 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     assert db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
     assert "Private fixture product" not in str(capture.records)
     assert "synthetic-secret" not in str(capture.records)
-    assert any(record["event"] == "run.finished" for record in capture.records)
+    finished = next(record for record in capture.records if record["event"] == "run.finished")
+    assert finished["fields"]["failed_chain_count"] == 0
+    assert finished["fields"]["failed_chains"] == []
 
 
 def test_cli_refresh_without_id_admits_and_publishes_using_worker_role(harness):
@@ -192,7 +194,7 @@ def test_cli_manual_conflict_preserves_existing_run_and_never_opens_provider(har
 def test_source_failure_does_not_prevent_other_chain_from_publishing(harness):
     db, _, _ = harness
     run = admit_run(db, ("victory", "osher-ad"))
-    code, _ = execute(
+    code, capture = execute(
         harness, run.id, lambda chain, *_: FixtureProvider(chain, listing_error=chain == "osher-ad")
     )
     state = get_run_status(db, run.id)
@@ -202,6 +204,11 @@ def test_source_failure_does_not_prevent_other_chain_from_publishing(harness):
         "victory": None,
     }
     assert db.execute("SELECT chain_id FROM public.products").fetchall() == [("victory",)]
+    finished = next(record for record in capture.records if record["event"] == "run.finished")
+    assert finished["fields"]["failed_chain_count"] == 1
+    assert finished["fields"]["failed_chains"] == [
+        {"chain_id": "osher-ad", "error_code": "LISTING_FAILED"}
+    ]
 
 
 def test_duplicate_delivery_does_not_construct_source_or_renewal_connection(harness):
@@ -228,11 +235,18 @@ def test_cancellation_preserves_published_chain_and_aborts_remaining_work(harnes
         sources.append(source)
         return source
 
-    code, _ = execute(harness, run.id, factory, cancelled=cancelled)
+    code, capture = execute(harness, run.id, factory, cancelled=cancelled)
     assert code == 130 and get_run_status(db, run.id).status == "PARTIAL_FAILED"
     assert db.execute("SELECT chain_id FROM public.products").fetchall() == [("osher-ad",)]
     assert all(source.closed for source in sources)
     assert len(sources[1].downloaded) == 1
+    teardown = next(
+        record for record in capture.records if record["event"] == "run.teardown_finished"
+    )
+    assert teardown["fields"]["failed_chain_count"] == 1
+    assert teardown["fields"]["failed_chains"] == [
+        {"chain_id": "victory", "error_code": "WORKER_ABORTED"}
+    ]
 
 
 def test_heartbeat_database_failure_stops_before_publication(harness):
