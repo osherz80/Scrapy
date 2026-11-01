@@ -236,5 +236,5 @@ fields under snake_case names as source text; only ItemPrice is averaged across
 branches. No product normalization or optional-value filtering runs in this path.
 The three requested metadata columns and normalized product aliases are removed.
 See [storage correction plan](tasks/xml-storage-plan.md) and spec sections 6-7.
-The API must be aligned to this new schema. Supabase has not been migrated to 003
-as part of this branch implementation.
+The API must be aligned to this new schema. Supabase migration 003 was applied explicitly on 2026-11-01; all 87,186 existing
+rows were preserved. Use this matching worker branch until it is merged to main.

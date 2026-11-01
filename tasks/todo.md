@@ -328,8 +328,9 @@ unchanged from one selected branch. Details: tasks/xml-storage-plan.md.
 - [x] 491 tests pass on Python 3.12 (including real disposable PostgreSQL), Ruff,
   actionlint and wheel/sdist builds. Upgrade preserves known rows; rollback refuses
   unrepresentable new XML values atomically rather than losing them.
-- [ ] Apply 003 with matching worker only after review; production database has
-  NOT been changed. Stop old workers during schema transition.
+- [x] User-authorized migration 003 applied to Supabase on 2026-11-01; zero active
+  refresh runs checked first. Versions 001/002/003 verified; all 87,186 rows
+  preserved and requested column removals/new XML columns confirmed.
 - [ ] Refresh catalogs to refill previously discarded fields. Update API product
   SQL/response/search normalization for the breaking column contract before use.
 
