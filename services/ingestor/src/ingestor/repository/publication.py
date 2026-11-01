@@ -3,25 +3,34 @@
 import json
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal
 from time import monotonic
 
 import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.types.json import Jsonb
 
-from ..aggregation import average_price
 from ..collection import ChainCollection
 from ..logging.types import Logger
-from ..providers.stream import SourceError
 from ..runs.ownership import OwnershipError, RunOwnership
+from ..xml_items import XML_COLUMNS, XmlProduct
 from .admission import _timeouts
 
+_INSERT_COLUMNS = (
+    "chain_id",
+    *XML_COLUMNS,
+    "sample_count",
+    "subchain_id",
+    "store_id",
+    "xml_fields",
+    "updated_at",
+    "run_id",
+)
 _INSERT = (
-    "INSERT INTO public.products (chain_id,item_code,name,manufacturer,currency,price,"
-    "package_quantity,package_unit,source_quantity,source_unit_qty,item_price_updated_at,"
-    "is_weighted,sample_count,source_updated_at,newest_source_updated_at,normalized_name,"
-    "name_tokens,updated_at,run_id) VALUES (" + ",".join(["%s"] * 19) + ")"
+    "INSERT INTO public.products ("
+    + ",".join(_INSERT_COLUMNS)
+    + ") VALUES ("
+    + ",".join(["%s"] * len(_INSERT_COLUMNS))
+    + ")"
 )
 
 
@@ -70,46 +79,32 @@ def _prepare(collection: ChainCollection):
     ]
     if len(json.dumps(sampled, ensure_ascii=False).encode("utf-8")) > 4096:
         raise PublicationError("INVALID_PUBLICATION")
+    if result.products and not _aware(result.source_updated_at):
+        raise PublicationError("INVALID_PUBLICATION")
     rows = []
     for product in result.products:
         if (
-            product.chain_id != result.chain_id
+            not isinstance(product, XmlProduct)
+            or product.chain_id != result.chain_id
             or type(product.sample_count) is not int
             or not 1 <= product.sample_count <= len(successful)
-            or type(product.is_weighted) is not bool
-            or not isinstance(product.price, Decimal)
-            or not _aware(product.source_updated_at)
-            or not _aware(product.newest_source_updated_at)
-            or (
-                product.item_price_updated_at is not None
-                and not _aware(product.item_price_updated_at)
+            or product.selected_branch not in successful
+            or not isinstance(product.fields, dict)
+            or any(
+                not isinstance(k, str) or not isinstance(v, str) for k, v in product.fields.items()
             )
+            or product.fields.get("item_code") != product.item_code
+            or not product.item_code
         ):
             raise PublicationError("INVALID_PUBLICATION")
-        try:
-            if average_price((product.price,)) != product.price:
-                raise PublicationError("INVALID_PUBLICATION")
-        except SourceError:
-            raise PublicationError("INVALID_PUBLICATION") from None
         rows.append(
             (
                 product.chain_id,
-                product.item_code,
-                product.name,
-                product.manufacturer,
-                product.currency,
-                product.price,
-                product.package_quantity,
-                product.package_unit,
-                product.source_quantity,
-                product.source_unit_qty,
-                product.item_price_updated_at,
-                product.is_weighted,
+                *(product.fields.get(c) for c in XML_COLUMNS),
                 product.sample_count,
-                product.source_updated_at,
-                product.newest_source_updated_at,
-                product.normalized_name,
-                list(product.name_tokens),
+                product.selected_branch.subchain_id,
+                product.selected_branch.store_id,
+                Jsonb(product.fields),
             )
         )
     return rows, Jsonb(sampled)

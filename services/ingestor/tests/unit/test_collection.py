@@ -72,7 +72,7 @@ def test_complete_collection_path_replaces_failure_then_returns_averages_only():
     assert len(result.attempted_branches) == 4 and result.failed_attempt_count == 1
     product = result.aggregation.products[0]
     assert product.price == Decimal("12.0000") and product.sample_count == 3
-    assert product.package_quantity == 60 and result.aggregation.can_publish
+    assert product.fields["quantity"] == "60" and result.aggregation.can_publish
     assert "synthetic-secret" not in stream.getvalue()
     assert "001234" not in stream.getvalue()
 

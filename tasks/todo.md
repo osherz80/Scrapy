@@ -308,3 +308,27 @@ Files: `docs/pilot-results.md`, `tasks/todo.md`.
 ## One-click manual refresh
 - [x] GitHub refresh accepts blank run_id, atomically admits all enabled chains in the runner and immediately invokes the normal fenced worker. Existing API-admitted IDs still supported.
 - [x] Thirty focused unit and real PostgreSQL cases pass, including admission-to-publication, conflicts, existing-ID reuse and connection cleanup; Ruff/actionlint/build pass.
+
+## XML item storage correction (2026-11-01)
+User supersedes the previous normalization/filtering contract. One row per
+chain/barcode and sampled ItemPrice averaging remain; all other item values come
+unchanged from one selected branch. Details: tasks/xml-storage-plan.md.
+
+- [x] New branch fix/preserve-xml-item-fields from main.
+- [x] Lossless source-text capture, snake_case field names, empty/unknown values,
+  deterministic metadata branch selection and no package/name/price row exclusions.
+- [x] Migration 003 replaces product aliases with XML text columns; removes product
+  compatibility_metadata/source_updated_at/newest_source_updated_at. Keeps known
+  old values; unknown lexical/source values require a fresh scrape to recover.
+- [x] Route collection and fenced publication through the XML representation;
+  retain source/identity/XML security, sampling, leases and atomicity.
+- [x] Supplied Keshet example survives full database publication: quantity 60.00,
+  unit_qty גרם, qty_in_package 12, full manufacture description, unit-of-measure
+  fields, empty item status and unchanged XML timestamp.
+- [x] 491 tests pass on Python 3.12 (including real disposable PostgreSQL), Ruff,
+  actionlint and wheel/sdist builds. Upgrade preserves known rows; rollback refuses
+  unrepresentable new XML values atomically rather than losing them.
+- [ ] Apply 003 with matching worker only after review; production database has
+  NOT been changed. Stop old workers during schema transition.
+- [ ] Refresh catalogs to refill previously discarded fields. Update API product
+  SQL/response/search normalization for the breaking column contract before use.

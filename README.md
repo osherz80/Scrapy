@@ -228,3 +228,13 @@ recovery and remaining launch gates.
 Manual full refresh: Actions > Supermarket refresh > Run workflow > mode=refresh,
 leave run_id blank. The runner admits the run automatically and publishes through
 the normal worker. Existing API-created runs can still supply optional run_id.
+
+## XML item storage revision
+
+The `fix/preserve-xml-item-fields` branch requires migration 003. It stores XML
+fields under snake_case names as source text; only ItemPrice is averaged across
+branches. No product normalization or optional-value filtering runs in this path.
+The three requested metadata columns and normalized product aliases are removed.
+See [storage correction plan](tasks/xml-storage-plan.md) and spec sections 6-7.
+The API must be aligned to this new schema. Supabase has not been migrated to 003
+as part of this branch implementation.

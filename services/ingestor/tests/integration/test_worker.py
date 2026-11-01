@@ -134,8 +134,8 @@ def test_worker_reads_only_authorized_chains_and_runs_full_pipeline(harness):
     state = get_run_status(db, run.id)
     assert state.status == "SUCCEEDED" and state.github_run_id == "12345:1"
     assert db.execute(
-        "SELECT chain_id,item_code,price,sample_count FROM public.products ORDER BY chain_id"
-    ).fetchall() == [(chain, "007", 11, 3) for chain in run.chains]
+        "SELECT chain_id,item_code,item_price,sample_count FROM public.products ORDER BY chain_id"
+    ).fetchall() == [(chain, "007", "11.0000", 3) for chain in run.chains]
     assert db.execute("SELECT count(*) FROM public.chain_leases").fetchone() == (0,)
     assert "Private fixture product" not in str(capture.records)
     assert "synthetic-secret" not in str(capture.records)
@@ -159,9 +159,9 @@ def test_cli_refresh_without_id_admits_and_publishes_using_worker_role(harness):
         == 0
     )
     assert db.execute("SELECT status FROM public.refresh_runs").fetchall() == [("SUCCEEDED",)]
-    assert db.execute("SELECT chain_id,price,sample_count FROM public.products").fetchall() == [
-        ("victory", 11, 3)
-    ]
+    assert db.execute(
+        "SELECT chain_id,item_price,sample_count FROM public.products"
+    ).fetchall() == [("victory", "11.0000", 3)]
     assert all(connection.closed for connection in connections)
 
 
