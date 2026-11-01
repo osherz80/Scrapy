@@ -5,9 +5,10 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 import psycopg
+from psycopg.errors import LockNotAvailable
 from psycopg.pq import TransactionStatus
 
-from ..runs.ownership import OwnershipError, RunOwnership
+from ..runs.ownership import OwnershipError, RunOwnership, TransientOwnershipError
 from .admission import _timeouts
 
 
@@ -85,46 +86,57 @@ def heartbeat(
     lease_seconds: int = 300,
     timeout_seconds: int = 2700,
 ) -> int:
-    """Renew every unfinished chain together, or raise without renewing any."""
+    """Renew every unfinished chain together, or raise without renewing any.
+
+    A publication transaction may hold the same run and lease rows for longer
+    than the heartbeat lock timeout. That contention is reported as
+    :class:`TransientOwnershipError` so the guard can retry while the lease is
+    still valid instead of declaring ownership lost.
+    """
     _validate(connection, lease_seconds, timeout_seconds)
-    with connection.transaction():
-        _timeouts(connection)
-        row = connection.execute(
-            "SELECT status,requested_chains,started_at FROM public.refresh_runs "
-            "WHERE id=%s FOR UPDATE",
-            (owner.run_id,),
-        ).fetchone()
-        if row is None or row[0] != "RUNNING" or tuple(sorted(row[1])) != owner.chains:
-            raise OwnershipError("LEASE_LOST")
-        active = tuple(
-            row[0]
-            for row in connection.execute(
-                "SELECT chain_id FROM public.refresh_run_chains "
-                "WHERE run_id=%s AND status IN ('PENDING','RUNNING') ORDER BY chain_id",
+    renewed = 0
+    try:
+        with connection.transaction():
+            _timeouts(connection)
+            row = connection.execute(
+                "SELECT status,requested_chains,started_at FROM public.refresh_runs "
+                "WHERE id=%s FOR UPDATE",
                 (owner.run_id,),
+            ).fetchone()
+            if row is None or row[0] != "RUNNING" or tuple(sorted(row[1])) != owner.chains:
+                raise OwnershipError("LEASE_LOST")
+            active = tuple(
+                row[0]
+                for row in connection.execute(
+                    "SELECT chain_id FROM public.refresh_run_chains "
+                    "WHERE run_id=%s AND status IN ('PENDING','RUNNING') ORDER BY chain_id",
+                    (owner.run_id,),
+                ).fetchall()
+            )
+            leases = connection.execute(
+                "SELECT chain_id,owner_token,expires_at FROM public.chain_leases "
+                "WHERE run_id=%s AND chain_id=ANY(%s) ORDER BY chain_id FOR UPDATE",
+                (owner.run_id, list(active)),
             ).fetchall()
-        )
-        leases = connection.execute(
-            "SELECT chain_id,owner_token,expires_at FROM public.chain_leases "
-            "WHERE run_id=%s AND chain_id=ANY(%s) ORDER BY chain_id FOR UPDATE",
-            (owner.run_id, list(active)),
-        ).fetchall()
-        now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
-        deadline = min(owner.deadline, row[2] + timedelta(seconds=timeout_seconds))
-        if deadline <= now:
-            raise OwnershipError("RUN_DEADLINE_EXCEEDED")
-        if tuple(lease[0] for lease in leases) != active or any(
-            lease[1] != owner.token or lease[2] <= now for lease in leases
-        ):
-            raise OwnershipError("LEASE_LOST")
-        connection.execute(
-            "UPDATE public.chain_leases SET heartbeat_at=%s,expires_at=%s "
-            "WHERE run_id=%s AND chain_id=ANY(%s)",
-            (
-                now,
-                min(deadline, now + timedelta(seconds=lease_seconds)),
-                owner.run_id,
-                list(active),
-            ),
-        )
-    return len(active)
+            now = connection.execute("SELECT clock_timestamp()").fetchone()[0]
+            deadline = min(owner.deadline, row[2] + timedelta(seconds=timeout_seconds))
+            if deadline <= now:
+                raise OwnershipError("RUN_DEADLINE_EXCEEDED")
+            if tuple(lease[0] for lease in leases) != active or any(
+                lease[1] != owner.token or lease[2] <= now for lease in leases
+            ):
+                raise OwnershipError("LEASE_LOST")
+            connection.execute(
+                "UPDATE public.chain_leases SET heartbeat_at=%s,expires_at=%s "
+                "WHERE run_id=%s AND chain_id=ANY(%s)",
+                (
+                    now,
+                    min(deadline, now + timedelta(seconds=lease_seconds)),
+                    owner.run_id,
+                    list(active),
+                ),
+            )
+            renewed = len(active)
+    except LockNotAvailable:
+        raise TransientOwnershipError("HEARTBEAT_CONTENDED") from None
+    return renewed

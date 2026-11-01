@@ -1,6 +1,8 @@
 import io
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from time import sleep
 from uuid import uuid4
 
 import psycopg
@@ -14,7 +16,7 @@ from ingestor.repository.admission import admit_run
 from ingestor.repository.migrate import apply_migrations, load_migrations
 from ingestor.repository.ownership import claim_run, heartbeat
 from ingestor.repository.publication import PublicationError, publish_collection
-from ingestor.runs.ownership import OwnershipError
+from ingestor.runs.ownership import LeaseGuard, OwnershipError
 from ingestor.xml_items import XmlCatalog, aggregate_xml_catalogs
 
 from .conftest import ROOT
@@ -308,3 +310,53 @@ def test_attempt_summary_and_logs_are_bounded_metadata_only(publication_db):
     assert "private-product-code" not in stream.getvalue()
     assert SOURCE_TIME.isoformat() in stream.getvalue()
     assert "source_age_hours" in stream.getvalue()
+
+
+def test_heartbeat_survives_a_publication_that_outlives_its_lock_timeout(publication_db):
+    """A long insert holds the lease row; the guard must retry, not lose ownership."""
+    owner = owner_for(publication_db, ("victory",))
+    publication_db.execute(
+        "CREATE FUNCTION public.slow_publication() RETURNS trigger LANGUAGE plpgsql AS "
+        "$$ BEGIN PERFORM pg_sleep(6.5); RETURN NEW; END $$"
+    )
+    publication_db.execute(
+        "CREATE TRIGGER slow_publication BEFORE INSERT ON public.products "
+        "FOR EACH ROW EXECUTE FUNCTION public.slow_publication()"
+    )
+    publication_db.execute("SET ROLE supermarket_ingestor")
+    dsn = publication_db.info.dsn
+    stream = io.StringIO()
+
+    def publish():
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            connection.execute("SET ROLE supermarket_ingestor")
+            return publish_collection(connection, owner, collection("new"))
+
+    with psycopg.connect(dsn, autocommit=True) as renewal:
+        renewal.execute("SET ROLE supermarket_ingestor")
+
+        def renew():
+            return heartbeat(renewal, owner, lease_seconds=300)
+
+        with LeaseGuard(
+            renew,
+            logger=create_logger(transport=ConsoleTransport(stream)),
+            interval_seconds=0.25,
+            retry_seconds=0.1,
+            lease_seconds=300,
+        ) as guard:
+            with ThreadPoolExecutor(max_workers=1) as workers:
+                future = workers.submit(publish)
+                # The first background pulse lands while the insert holds the rows.
+                sleep(0.5)
+                assert future.result(timeout=30) is True
+            guard.check()
+        assert not guard.wait_until_lost(0)
+        # Stop the guard before using its renewal connection from this thread.
+        assert heartbeat(renewal, owner, lease_seconds=300) == 0
+    assert publication_db.execute("SELECT item_code FROM public.products").fetchall() == [("new",)]
+    assert publication_db.execute("SELECT status FROM public.refresh_run_chains").fetchone() == (
+        "SUCCEEDED",
+    )
+    assert "lease.heartbeat_contended" in stream.getvalue()
+    assert "lease.heartbeat_failed" not in stream.getvalue()

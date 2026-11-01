@@ -138,6 +138,8 @@ def run_worker(
                     logger=logger,
                     interval_seconds=settings.heartbeat_seconds,
                     timeout_seconds=remaining,
+                    lease_seconds=settings.run_lease_seconds,
+                    retry_seconds=min(5, settings.heartbeat_seconds),
                     monotonic=clock,
                 ) as guard:
 
@@ -188,7 +190,12 @@ def run_worker(
                                 AggregationResult(chain, (), 0, 0, 0, 0, 0, 0), (), (), 0
                             )
                         published = publish_collection(
-                            connection, owner, result, logger=chain_logger, failure_code=failure
+                            connection,
+                            owner,
+                            result,
+                            logger=chain_logger,
+                            failure_code=failure,
+                            lease_seconds=settings.run_lease_seconds,
                         )
                         chain_logger.info(
                             "chain.finished",

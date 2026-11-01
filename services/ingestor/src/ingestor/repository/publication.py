@@ -143,6 +143,30 @@ def _lock_chain(connection, owner, chain_id):
     return run[2], _check_lease(connection, owner, chain_id, run[2])
 
 
+def _extend_lease(connection, owner, chain_id, run_started_at, now, lease_seconds):
+    """Refresh the lease inside the publication transaction.
+
+    A bulk insert can outlive the heartbeat interval while holding the lease row
+    lock, so the heartbeat cannot renew it. Extending here keeps the lease valid
+    for the insert without weakening the final fencing check.
+    """
+    expires_at = min(
+        owner.deadline,
+        run_started_at + timedelta(minutes=45),
+        now + timedelta(seconds=lease_seconds),
+    )
+    if expires_at <= now:
+        raise OwnershipError("RUN_DEADLINE_EXCEEDED")
+    updated = connection.execute(
+        "UPDATE public.chain_leases SET heartbeat_at=%s,expires_at=%s "
+        "WHERE chain_id=%s AND run_id=%s AND owner_token=%s RETURNING expires_at",
+        (now, expires_at, chain_id, owner.run_id, owner.token),
+    ).fetchone()
+    if updated is None or updated[0] <= now:
+        raise OwnershipError("LEASE_LOST")
+    return now
+
+
 def start_chain(connection: psycopg.Connection, owner: RunOwnership, chain_id: str) -> None:
     """Record actual collection start only while ownership is valid."""
     if not connection.autocommit or connection.info.transaction_status != TransactionStatus.IDLE:
@@ -164,6 +188,7 @@ def publish_collection(
     *,
     logger: Logger | None = None,
     failure_code: str | None = None,
+    lease_seconds: int = 300,
 ) -> bool:
     """Stage one chain in memory, then atomically replace or preserve its catalog.
 
@@ -176,6 +201,8 @@ def publish_collection(
     if logger:
         logger = logger.child(run_id=str(owner.run_id), chain_id=result.chain_id)
     try:
+        if type(lease_seconds) is not int or not 1 <= lease_seconds <= 300:
+            raise PublicationError("INVALID_PUBLICATION")
         if (
             not connection.autocommit
             or connection.info.transaction_status != TransactionStatus.IDLE
@@ -193,6 +220,9 @@ def publish_collection(
         with connection.transaction():
             _timeouts(connection)
             run_started_at, now = _lock_chain(connection, owner, result.chain_id)
+            now = _extend_lease(
+                connection, owner, result.chain_id, run_started_at, now, lease_seconds
+            )
             if result.can_publish:
                 connection.execute(
                     "DELETE FROM public.products WHERE chain_id=%s", (result.chain_id,)
