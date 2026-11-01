@@ -12,7 +12,7 @@ they never fall back to DATABASE_URL.
 |---|---|
 | DATABASE_URL | Direct Postgres URL; required for refresh/scheduled and administration |
 | DATABASE_SSLROOTCERT | Project-local CA file; system trust when absent |
-| ENABLED_CHAINS | Eight active chains; deferred Carrefour/Shufersal excluded |
+| ENABLED_CHAINS | Nine active chains; deferred Carrefour excluded |
 | PROVIDER_TIMEOUT_SECONDS | 60 seconds per request |
 | PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000 bytes |
 | REFRESH_STALE_HOURS | 48 hours |

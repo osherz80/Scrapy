@@ -35,7 +35,7 @@ delete task-created contents of `Temp/` after verification. Runtime and virtual
 environment directories remain ignored and local. On Linux use `.venv312/bin/python`.
 
 Collection and database coordination are implemented and verified locally.
-Source roster mapping is locally verified for eight chains. Hosted source/capacity checks remain gates;
+Source roster mapping is locally verified for nine chains. Hosted source/capacity checks remain gates;
 operational readiness must not be inferred from fixture/bootstrap tests.
 
 ## Logging boundary
@@ -114,10 +114,12 @@ Physical-branch eligibility, complete-roster pagination, package reconciliation,
 random sampling, SQL publication and hosted reachability remain separate gates.
 Review [provider evidence](docs/provider-evidence.md) before making coverage claims.
 
-Carrefour and Shufersal recovery is deferred by user decision; see
-[deferred work](tasks/deferred.md). Their public IDs remain in the registry, but
-defaults exclude both and source adapters reject direct access with
-`SOURCE_DEFERRED`, even if an explicit environment list includes their IDs.
+Shufersal production support was added on 2026-11-01 and passed a local pilot:
+the full paginated PriceFull listing plus Stores roster are read through the
+bounded client, and migration 006 enables the chain. Carrefour recovery remains
+deferred by user decision; see [deferred work](tasks/deferred.md). Its public ID
+remains in the registry, but defaults exclude it and the adapter rejects direct
+access with `SOURCE_DEFERRED`, even if an explicit environment list includes it.
 
 The provider contract uses composite `(chain, subchain, store)` identities and
 explicit physical/online/pharmacy/unknown branch classifications. Inventory
@@ -190,7 +192,7 @@ remain launch work; admission, fencing, publication and recovery are implemented
 | DATABASE_URL | Required for refresh/scheduled or explicit database validation; never logged |
 | DATABASE_SSLROOTCERT | Optional project-local database CA path; defaults to system trust |
 | GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT | Required execution ID / attempt defaults to 1 for refresh |
-| ENABLED_CHAINS | Eight active chains by default; comma-separated distinct registry IDs |
+| ENABLED_CHAINS | Nine active chains by default; comma-separated distinct registry IDs |
 | PROVIDER_TIMEOUT_SECONDS | 60, positive integer |
 | PROVIDER_MAX_DECOMPRESSED_BYTES | 100000000, positive integer |
 | REFRESH_STALE_HOURS | 48, positive integer |
@@ -247,3 +249,7 @@ Migration 005 applied: manufacturer_name/bls_weighted/price_update_date removed;
 source aliases map to manufacture_name/b_is_weighted/price_update_time. Existing
 alternate values were preserved in canonical columns where needed. All 100,295
 products and name_tokens were verified preserved.
+
+Migration 006 enables Shufersal after its local production pilot. It changes the
+`public.chains.enabled` flag only; existing catalogs are untouched. Apply it
+explicitly before claiming Shufersal refresh coverage.

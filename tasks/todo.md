@@ -1,6 +1,8 @@
 # Scraper implementation tasks
 
 Status: scheduling/workflows implemented; hosted CI verified; production pilot remains open.
+Current source state (2026-11-01): Shufersal production provider implemented and
+locally piloted; migration 006 enables it. Carrefour remains deferred.
 Check items only after evidence is recorded. Paths below are relative to this
 scraper repository. Each task is a separate commit. The user authorized pushes;
 deployment is not implied.
@@ -27,7 +29,7 @@ Files: `logging/{__init__,types,transports}.py`, `tests/unit/test_logging.py`, `
 - [x] Redaction includes nested fields, credential URLs, and exceptions; delivery/flush failure cannot change worker state; shutdown is bounded.
 - [x] Verification: 13 logger tests cover capture transport, JSON/UTC schema, redaction, context snapshots, all severity thresholds, bounded recursive context, delivery failure and blocked flush. Full suite: 15 passed; Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 
-Current boundary: tasks 1–4 are complete. User deferred Carrefour/Shufersal recovery on 2026-10-30; track it in `tasks/deferred.md` and continue task 6 with the eight locally passing chains. Task 7's HTTP/archive safety primitives and secure trial inspection were brought forward. No database connection or publication has occurred. See `docs/provider-evidence.md` for measured evidence and remaining hosted/eligibility gates.
+Current boundary: tasks 1–4 are complete. User deferred Carrefour/Shufersal recovery on 2026-10-30; track it in `tasks/deferred.md` and continue task 6 with the eight locally passing chains. (Superseded 2026-11-01: Shufersal was recovered and is enabled with the other eight, making nine locally passing chains; Carrefour remains deferred.) Task 7's HTTP/archive safety primitives and secure trial inspection were brought forward. No database connection or publication has occurred. See `docs/provider-evidence.md` for measured evidence and remaining hosted/eligibility gates.
 
 Cleanup limitation: automatic approval review rejected recursive deletion of the verified task-created temporary/cache directories, including an explicit-literal-path retry, with `blocked by policy`. `Temp/`, initial Ruff/pytest caches, source/test bytecode caches and the empty runtime download scratch directory remain ignored locally. Future pytest/Ruff caches are configured under root `Temp/`. Cleanup remains unfinished; no alternate deletion mechanism was used to bypass the rejection.
 
@@ -48,13 +50,13 @@ Files: `providers/trial.py`, `providers/inspection.py`, focused tests, `docs/pro
 - [x] Trial evaluates timestamp/identity/source package-pair coverage and memory path; explicitly list failed/unverified chains. Unit normalization and physical-branch classification are not claimed.
 - [x] Verification: opt-in bounded local trial evaluated all ten, 8 passed; no raw-file artifacts. Deterministic failure/sanitization tests pass. Hosted coverage remains task 20.
 
-Local recovery evidence: Carrefour's Stores file did not reveal aliases for the three filename/XML-ID mismatches. Fallback Shufersal listing parameters hit the same timeout (60,656 ms); no proxy/cost or weaker validation was introduced. Recovery/fallback orchestration is deferred by the user's request; the other eight chains proceed with the guarded candidate.
+Local recovery evidence: Carrefour's Stores file did not reveal aliases for the three filename/XML-ID mismatches. Fallback Shufersal listing parameters hit the same timeout (60,656 ms); no proxy/cost or weaker validation was introduced. Recovery/fallback orchestration was deferred by the user's request; the other eight chains proceeded with the guarded candidate. Update 2026-11-01: the earlier Shufersal timeout was transient. Shufersal now uses a dedicated production provider with a complete paginated listing and passed a local pilot; see `docs/provider-evidence.md` and `tasks/deferred.md`. Carrefour remains deferred.
 
 ## 6. Provider adapter contract
 Dependencies: 5. Scope: medium.
 Files: `providers/types.py`, `providers/selected.py`, `tests/unit/test_provider.py`, `docs/provider-evidence.md`.
-- [x] Typed composite branch IDs, physical-branch eligibility, pagination and latest exact PriceFull selection have verified mappings for the eight active sources.
-- [x] No hidden retries or arbitrary workflow URLs; online-only/unknown classifications excluded. Only the eight specified grocery publishers are implemented; deferred sources fail before client creation.
+- [x] Typed composite branch IDs, physical-branch eligibility, pagination and latest exact PriceFull selection have verified mappings for the eight active sources (nine after Shufersal's 2026-11-01 recovery).
+- [x] No hidden retries or arbitrary workflow URLs; online-only/unknown classifications excluded. Only the specified grocery publishers are implemented (eight at the time; nine after Shufersal's 2026-11-01 recovery); deferred sources fail before client creation.
 - [x] Verification: strict roster/filename fixtures, explicit aliases/padding checks, three portal-family HTTP fixtures, completeness failures, unique composite mapping and download allowlisting. Bounded local inventories and three fully parsed/reconciled physical branches per active chain passed; see `docs/roster-mapping.md`. Hosted support is unverified.
 
 Implemented: provider-independent immutable contracts, explicit branch-kind
@@ -73,7 +75,7 @@ Files: `providers/stream.py`, `tests/unit/test_stream.py`, `tests/fixtures/strea
 - [x] Verification: existing gzip/bomb/corrupt/truncation/HTTP timeout/stream limits, new forbidden-write provider test, no retry/re-login path, plus local three-branch-per-source collection without raw artifacts.
 
 ## Checkpoint: source boundary
-- [x] Adapter evidence recorded; limits and no-disk path proven for eight active sources. Hosted reachability remains separate.
+- [x] Adapter evidence recorded; limits and no-disk path proven for eight active sources (nine after 2026-11-01). Hosted reachability remains separate.
 
 ## 8. Strict catalog parsing
 Dependencies: 7. Scope: medium.
@@ -131,7 +133,7 @@ by the previously recorded automatic approval review; no deletion bypass was use
 ## 12. Private PostgreSQL schema
 Dependencies: 2, 10. Scope: medium.
 Files: `db/migrations/001_ingestion.sql`, `db/rollback/001_ingestion.sql`, `repository/migrate.py`, `tests/integration/test_schema.py`, `docs/database.md`.
-- [x] Six domain tables plus private migration history, constraints/indexes, ten seeded chains (two deferred), and separate NOLOGIN read/control/writer groups. Public/anonymous grants revoked; worker cannot change enabled flags or truncate catalogs.
+- [x] Six domain tables plus private migration history, constraints/indexes, ten seeded chains (two deferred at the time; one after 2026-11-01), and separate NOLOGIN read/control/writer groups. Public/anonymous grants revoked; worker cannot change enabled flags or truncate catalogs.
 - [x] Explicit status/apply/latest-version rollback CLI, paired SQL, transaction advisory locking, forward/rollback checksum history, atomic batches, sanitized errors and verified remote TLS defaults. No environment files loaded or credentials embedded.
 - [x] Verification: 32 real PostgreSQL integration cases and 244 offline cases passed (276 total) on an isolated PostgreSQL 18.3 cluster under Temp. Schema/index introspection, role denial, Supabase-style anonymous default grants, finite/positive prices, exact codes, rollback/reapply, failed-batch rollback, checksum drift, CLI operations and concurrent runners verified. Actual Supabase capacity remains a hosted measurement gate, not inferred from empty local tables.
 
@@ -208,7 +210,7 @@ Ruff lint/format and sdist/wheel build passed on Python 3.12.16.
 ## 17. Worker end-to-end
 Dependencies: 4, 11, 16. Scope: medium.
 Files: `runs/worker.py`, `cli.py`, `tests/integration/test_worker.py`, `tests/unit/test_worker_failures.py`.
-- [x] Refresh reads authorized chains from run UUID and wires listing -> selection -> full parse -> aggregate -> fenced publish with heartbeat. Default factories now use the eight-source adapter and existing DATABASE_URL.
+- [x] Refresh reads authorized chains from run UUID and wires listing -> selection -> full parse -> aggregate -> fenced publish with heartbeat. Default factories now use the source adapter (eight sources at the time; nine after Shufersal's 2026-11-01 recovery) and existing DATABASE_URL.
 - [x] Per-chain partial success, run outcomes, cancellation/timeout and structured sanitized counts/durations have explicit behavior.
 - [x] Verification: 12 fixture-backed PostgreSQL worker/CLI cases cover complete refresh, authorized chains, partial source failure, duplicate delivery, initial validation, heartbeat SQL failure, deadlines, cancellation, SIGTERM/keyboard interrupt, publication failure and cleanup. Eleven offline worker/CLI cases cover preflight without connection/secret echoes; startup also rejects limits beyond the repository's lease/job maxima.
 
@@ -217,7 +219,7 @@ run UUID and GitHub execution context, uses direct sessions from DATABASE_URL, a
 never accepts workflow source URLs or arbitrary chain overrides. Connection policy
 is shared with migration administration, including verified TLS and no env-file
 loader. The default connector is tested on a disposable database with fixture
-sources; all eight source adapters separately passed local read-only collection.
+sources; all eight source adapters then active separately passed local read-only collection.
 Cooperative safe points cannot forcibly cancel blocked calls; the hosted hard
 timeout remains task 19. No Supabase operation has run. Next: schedule/workflows.
 Verification: 395 tests passed, including 110 real PostgreSQL cases. Ruff
@@ -230,7 +232,7 @@ including 111 real PostgreSQL cases; Ruff lint/format and sdist/wheel build pass
 
 Dependencies: 13, 17. Scope: medium.
 Files: `runs/schedule.py`, `repository/schedule.py`, `tests/unit/test_schedule.py`, `tests/integration/test_schedule_claim.py`.
-- [x] Verified native Asia/Jerusalem 06:00 cron replaces the two-UTC-candidate fallback; application gate and atomic local-date claim reserve all eight active chains or record conflict. Deferred chains remain excluded.
+- [x] Verified native Asia/Jerusalem 06:00 cron replaces the two-UTC-candidate fallback; application gate and atomic local-date claim reserve all active chains (eight at the time; nine after 2026-11-01) or record conflict. Deferred chains remain excluded.
 - [x] Duplicate/delayed/missed invocations are explicit operational outcomes. 06:00–06:59 starts may run with delay reported; later starts fail without admission. A conflicted daily claim is retained; recovery uses manual admission/run-ID dispatch.
 - [x] Verification: 14 schedule unit cases, CLI wiring, and five PostgreSQL integration cases cover winter/summer/DST transitions, midnight date conversion, no-I/O skips, concurrent claims, shared admission locks, failure rollback, durable conflicts and scheduled fixture-worker composition.
 
@@ -262,7 +264,7 @@ locally and on the GitHub-hosted Ubuntu runner. The hosted suite completed in
 ## 20. Controlled hosted pilot
 Dependencies: 19. Scope: small.
 Files: `docs/provider-evidence.md`, `docs/pilot-results.md`.
-- [ ] Evaluate the eight active chains from the actual GitHub runner; normalized products demonstrated for reachable chains; failures have sanitized evidence. Carrefour/Shufersal stay deferred and are not accessed.
+- [ ] Evaluate the nine active chains from the actual GitHub runner; normalized products demonstrated for reachable chains; failures have sanitized evidence. Carrefour stays deferred and is not accessed.
 - [ ] Record exact dependencies, RAM/runtime, schema/unit/timestamp findings and direct database connectivity with verified TLS.
 - [ ] Verification: controlled probe, then bounded refresh against explicitly designated environment; no raw catalogs in artifacts/logs.
 

@@ -28,11 +28,13 @@ Chain IDs are stable public identifiers:
 
 Every daily run randomly selects three distinct branches per chain anew. Use latest available PriceFull files only. No deltas, promotions, price history, raw-file retention, or branch-price persistence. Store one current row per product per chain, with its sampled arithmetic mean in `item_price`. Re-randomization may change an estimate without any underlying branch price change.
 
-Operational deferral (user decision, 2026-10-30): retain all ten public IDs, but
-defer Carrefour and Shufersal source recovery. Default collection currently uses
-the other eight chains. Deferred sources must not be reported as refreshed or
-erase existing catalogs. Track recovery in `tasks/deferred.md`; this does not
-change sampling, averaging or retention rules for active chains.
+Operational recovery: retain all ten public IDs. Shufersal production support was
+added and piloted on 2026-11-01 and is enabled by migration 006. Carrefour source
+recovery remains deferred (user decision, 2026-10-30). Default collection
+currently uses the other nine chains. Deferred sources must not be reported as
+refreshed or erase existing catalogs. Track remaining recovery in
+`tasks/deferred.md`; this does not change sampling, averaging or retention rules
+for active chains.
 
 ## 3. Topology and technologies
 
@@ -171,7 +173,7 @@ The stored item values are source data rather than normalized search records.
 
 API manual request reserves all requested chain leases in a single transaction, ordered by chain ID. Any conflict rejects the whole request with 409. Create PENDING run before dispatch. Dispatch GitHub workflow with runId only; worker reads the authorized chain list from DB. Never accept workflow inputs as SQL identifiers or arbitrary provider URLs.
 
-Daily workflow reserves all enabled active chains through the same coordination code (eight while Carrefour/Shufersal are deferred). If any selected lease conflicts, record a scheduled conflict and finish without partial admission; later manual retry is available. Unrelated manual chain sets can run concurrently. No workflow-global concurrency cancellation; database leases are authoritative.
+Daily workflow reserves all enabled active chains through the same coordination code (nine while Carrefour is deferred). If any selected lease conflicts, record a scheduled conflict and finish without partial admission; later manual retry is available. Unrelated manual chain sets can run concurrently. No workflow-global concurrency cancellation; database leases are authoritative.
 
 Worker atomically claims a PENDING run once, stores GitHub execution ID and a random owner token. Duplicate workflow delivery exits without ingestion. Heartbeat every 30 seconds; running lease TTL 5 minutes. Publication must check its current fencing token under lock, preventing an expired worker from overwriting newer data.
 
