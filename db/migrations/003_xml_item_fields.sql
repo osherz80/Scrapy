@@ -35,15 +35,16 @@ CREATE TABLE public.products_xml_003 (
 );
 INSERT INTO public.products_xml_003 (
     chain_id,item_code,item_name,manufacture_name,item_price,quantity,unit_qty,
-    b_is_weighted,sample_count,updated_at,run_id,xml_fields
+    b_is_weighted,price_update_time,sample_count,updated_at,run_id,xml_fields
 )
 SELECT chain_id,item_code,name,manufacturer,price::text,source_quantity::text,
-    source_unit_qty,CASE WHEN is_weighted THEN '1' ELSE '0' END,
+    source_unit_qty,CASE WHEN is_weighted THEN '1' ELSE '0' END,item_price_updated_at::text,
     sample_count,updated_at,run_id,
     jsonb_strip_nulls(jsonb_build_object('item_code',item_code,'item_name',name,
         'manufacture_name',manufacturer,'item_price',price::text,
         'quantity',source_quantity::text,'unit_qty',source_unit_qty,
-        'b_is_weighted',CASE WHEN is_weighted THEN '1' ELSE '0' END))
+        'b_is_weighted',CASE WHEN is_weighted THEN '1' ELSE '0' END,
+        'price_update_time',item_price_updated_at::text))
 FROM public.products;
 DROP TABLE public.products;
 ALTER TABLE public.products_xml_003 RENAME TO products;

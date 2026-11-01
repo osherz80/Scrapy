@@ -146,15 +146,15 @@ def test_xml_migration_preserves_known_existing_values_and_removes_old_columns(m
     migration_db.execute(
         "INSERT INTO public.products(chain_id,item_code,name,price,is_weighted,sample_count,"
         "source_updated_at,newest_source_updated_at,run_id,normalized_name,name_tokens,"
-        "source_quantity,source_unit_qty,package_quantity,package_unit) "
+        "source_quantity,source_unit_qty,package_quantity,package_unit,item_price_updated_at) "
         "VALUES ('victory','001','Existing',12.90,false,1,now(),now(),%s,'existing',"
-        "ARRAY['existing'],60,'גרם',60,'g')",
+        "ARRAY['existing'],60,'גרם',60,'g','2024-03-14 14:38:43+00')",
         (run.id,),
     )
     assert apply_migrations(migration_db, migrations) == ("003",)
     assert migration_db.execute(
-        "SELECT item_code,item_name,item_price,quantity,unit_qty FROM public.products"
-    ).fetchone() == ("001", "Existing", "12.9000", "60", "גרם")
+        "SELECT item_code,item_name,item_price,quantity,unit_qty,price_update_time FROM public.products"
+    ).fetchone() == ("001", "Existing", "12.9000", "60", "גרם", "2024-03-14 14:38:43+00")
     columns = {
         r[0]
         for r in migration_db.execute(

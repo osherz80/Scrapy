@@ -332,3 +332,5 @@ unchanged from one selected branch. Details: tasks/xml-storage-plan.md.
   NOT been changed. Stop old workers during schema transition.
 - [ ] Refresh catalogs to refill previously discarded fields. Update API product
   SQL/response/search normalization for the breaking column contract before use.
+
+Hosted XML-storage CI passed for a4e3a45: https://github.com/osherz80/Scrapy/actions/runs/41301828852 . Follow-up legacy timestamp preservation passed all 19 migration/XML-focused cases. No production migration performed.

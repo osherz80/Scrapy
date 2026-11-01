@@ -346,3 +346,7 @@ The table is copied transactionally before replacing it; allow temporary storage
 headroom. Existing role boundaries are re-established, including explicit revokes
 for Supabase anon/authenticated default grants. No production migration was run
 as part of developing this revision.
+
+Legacy item_price_updated_at values are retained as their existing database text
+in price_update_time during migration. Their original XML lexical form cannot be
+reconstructed; a refresh replaces them with the exact XML text.
